@@ -294,6 +294,8 @@ export type Board = {
   name?: string
   // Board-scoped agent context (distinct from WorkspaceConfig.brief).
   brief?: string
+  /** Hide the dotted background grid on this board (board settings). */
+  hideBackgroundDots?: true
   nodes: BoardNode[]
   edges: BoardEdge[]
   viewport?: BoardViewport

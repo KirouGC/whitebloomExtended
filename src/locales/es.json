@@ -21,7 +21,23 @@
     "quickAccessMissing": "Esta carpeta ya no existe o no está disponible.",
     "quickAccessBoardCount_one": "{{count}} tablero",
     "quickAccessBoardCount_other": "{{count}} tableros",
-    "settingsLabel": "Configuración"
+    "settingsLabel": "Configuración",
+    "trashAction": "Papelera",
+    "trashSection": "Papelera",
+    "trashHint": "Los tableros que borrás quedan acá. Podés restaurarlos a su carpeta o eliminarlos para siempre.",
+    "trashEmpty": "Vaciar papelera",
+    "trashEmptyState": "La papelera está vacía.",
+    "trashRestore": "Restaurar",
+    "trashRestoredTo": "Restaurado en {{path}}",
+    "trashRestoreFailed": "No se pudo restaurar el tablero.",
+    "trashDeleteForever": "Eliminar para siempre",
+    "trashUnknownOrigin": "Carpeta original desconocida",
+    "trashEmptyConfirmTitle": "¿Vaciar la papelera?",
+    "trashEmptyConfirmBody_one": "Se eliminará {{count}} tablero de forma permanente. No se puede deshacer.",
+    "trashEmptyConfirmBody_other": "Se eliminarán {{count}} tableros de forma permanente. No se puede deshacer.",
+    "trashDeleteConfirmTitle": "¿Eliminar para siempre?",
+    "trashDeleteConfirmBody": "\"{{name}}\" se eliminará de forma permanente. No se puede deshacer.",
+    "trashCancel": "Cancelar"
   },
   "workspaceHome": {
     "workspaceLabel": "Espacio de trabajo",
@@ -55,7 +71,7 @@
   },
   "confirmTrashModal": {
     "title": "¿Mover tablero a la papelera?",
-    "description": "El archivo del tablero se moverá a wbapp:trash. Puedes restaurarlo manualmente desde el sistema de archivos durante el desarrollo.",
+    "description": "El tablero va a la Papelera de la pantalla de inicio, desde donde podés restaurarlo.",
     "cancelButton": "Cancelar",
     "movingButton": "Moviendo…",
     "moveButton": "Mover a la papelera"
@@ -73,7 +89,7 @@
     "cancelButton": "Cancelar",
     "closeButton": "Cerrar",
     "moveToTrashTitle": "¿Mover tablero a la papelera?",
-    "moveToTrashBody": "Esto mueve el archivo del tablero a wbapp:trash. Se perderán los cambios en memoria sin guardar.",
+    "moveToTrashBody": "El tablero va a la Papelera de la pantalla de inicio, desde donde podés restaurarlo. Se perderán los cambios sin guardar.",
     "moveToTrashButton": "Mover a la papelera",
     "webResourceDropError": "No se pueden incrustar recursos web — guarda la imagen en tu disco local primero y luego suéltala.",
     "dropError": "No se puede soltar el archivo.",
@@ -81,7 +97,7 @@
     "importRequiresWorkspace": "Disponible solo en tableros de espacios de trabajo.",
     "promoteSubboardError": "No se pudo promover este clúster a un subtablero.",
     "promoteError": "No se puede promover este tablero rápido a un espacio de trabajo.",
-    "trashError": "No se puede mover este tablero a wbapp:trash.",
+    "trashError": "No se pudo mover este tablero a la Papelera.",
     "boardSettingsMenuItem": "Configuración",
     "promoteToWorkspaceMenuItem": "Promover a espacio de trabajo",
     "moveToTrashMenuItem": "Mover a la papelera",
@@ -133,7 +149,9 @@
     "namePlaceholder": "Sin título",
     "briefLabel": "Descripción",
     "briefHint": "Un mensaje para los agentes de IA — describe para qué es este tablero, el contexto que deben tener en cuenta o cómo te gustaría que te ayuden.",
-    "briefPlaceholder": "Este tablero es para…"
+    "briefPlaceholder": "Este tablero es para…",
+    "backgroundDotsLabel": "Mostrar puntos del fondo",
+    "backgroundDotsHint": "La grilla de puntos detrás del tablero. Se guarda con este tablero."
   },
   "workspaceSettings": {
     "title": "Espacio de trabajo",
@@ -177,7 +195,9 @@
     "crosshairCustom": "Color personalizado",
     "crosshairPreview": "Pasá el mouse acá para previsualizar",
     "quickAccessNeverAskLabel": "No ofrecer nunca agregar carpetas nuevas a Acceso rápido",
-    "quickAccessNeverAskHint": "Si está desactivado, al crear un espacio de trabajo en una carpeta que no está en Acceso rápido se te pregunta si querés agregarla."
+    "quickAccessNeverAskHint": "Si está desactivado, al crear un espacio de trabajo en una carpeta que no está en Acceso rápido se te pregunta si querés agregarla.",
+    "backgroundDotsLabel": "Mostrar puntos del fondo en todos los tableros",
+    "backgroundDotsHint": "Desactivalo para ocultar la grilla de puntos en todos lados. Cada tablero también puede ocultarla en su propia configuración."
   },
   "petalPalette": {
     "ariaLabel": "Paleta de comandos",
@@ -211,14 +231,15 @@
     "typewriterMode": "máquina de escribir"
   },
   "canvasToolbar": {
-    "pointerLabel": "Puntero",
+    "pointerLabel": "Seleccionar",
     "handLabel": "Mano",
-    "addTextLabel": "Agregar texto",
-    "inkLabel": "Tinta",
-    "acetateLabel": "Alternar capa de acetato",
+    "addTextLabel": "Texto",
+    "inkLabel": "Lápiz",
+    "acetateLabel": "Mostrar u ocultar capa de tinta",
     "alertsLabel": "TODO - alertas",
     "commentsLabel": "TODO - comentarios",
-    "shapesLabel": "TODO - formas"
+    "shapesLabel": "Formas",
+    "shapesTip": "Formas"
   },
   "schemaBloomToolbar": {
     "addTableLabel": "Agregar tabla",
@@ -313,7 +334,8 @@
     "penStyleLabel": "Color y grosor del lápiz",
     "colorLabel": "Color",
     "customColorLabel": "Color personalizado",
-    "thicknessLabel": "Grosor"
+    "thicknessLabel": "Grosor",
+    "pressureLabel": "Sensibilidad a la presión"
   },
   "quickAccessPrompt": {
     "title": "¿Agregar carpeta a Acceso rápido?",
@@ -327,7 +349,7 @@
     "exportAllHint": "Recorta a todo lo que hay en el tablero",
     "exportZone": "Exportar zona",
     "exportZoneHint": "Elegí una región para exportar",
-    "zoneHint": "Arrastrá las puntas para ajustar la zona, o arrastrá afuera para dibujar una nueva",
+    "zoneHint": "Arrastrá la zona o sus puntas para ajustarla · arrastrá afuera, o con el botón central, para mover el tablero · rueda para hacer zoom",
     "exportButton": "Exportar",
     "exporting": "Exportando…",
     "cancelButton": "Cancelar",

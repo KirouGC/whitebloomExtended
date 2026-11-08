@@ -1,6 +1,7 @@
 import { getStroke } from 'perfect-freehand'
 import type { InkPagedUvSample, InkStroke } from '../../../../shared/ink'
 import { DEFAULT_INK_STROKE_STYLE } from '../../../../shared/ink'
+import { strokeOutlineOptions } from '../../canvas/inkStrokeOptions'
 
 export type ScreenSample = {
   x: number
@@ -90,40 +91,28 @@ export function screenSampleToPagedUv(
 
 export function buildOutlineFromScreenSamples(
   samples: ScreenSample[],
-  size = DEFAULT_INK_STROKE_STYLE.width
+  size = DEFAULT_INK_STROKE_STYLE.width,
+  pressure = true
 ): Array<[number, number]> {
-  const points: StrokePoint[] = samples.map((sample) => [sample.x, sample.y, sample.pressure])
+  const points: StrokePoint[] = samples.map((sample) => [sample.x, sample.y, pressure ? sample.pressure : 0.5])
 
-  return getStroke(points, {
-    size,
-    thinning: 0.62,
-    smoothing: 0.58,
-    streamline: 0.44,
-    simulatePressure: true,
-    last: true
-  })
+  return getStroke(points, strokeOutlineOptions(size, pressure))
 }
 
 export function buildPagedOutlineOnPage(
   samples: InkPagedUvSample[],
   pageWidth: number,
   pageHeight: number,
-  size = DEFAULT_INK_STROKE_STYLE.width
+  size = DEFAULT_INK_STROKE_STYLE.width,
+  pressure = true
 ): Array<[number, number]> {
   const points: StrokePoint[] = samples.map((sample) => [
     sample.u * pageWidth,
     sample.v * pageHeight,
-    sample.pressure
+    pressure ? sample.pressure : 0.5
   ])
 
-  return getStroke(points, {
-    size,
-    thinning: 0.62,
-    smoothing: 0.58,
-    streamline: 0.44,
-    simulatePressure: true,
-    last: true
-  })
+  return getStroke(points, strokeOutlineOptions(size, pressure))
 }
 
 /**

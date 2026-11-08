@@ -460,3 +460,101 @@
 .quick-access-prompt__never {
   margin-bottom: 14px;
 }
+
+/* ── Trash ────────────────────────────────────────────────────────────── */
+
+.start-screen__sidebar {
+  min-height: 100vh;
+}
+
+.start-screen__sidebar-bottom {
+  margin-top: auto;
+  padding-top: 16px;
+}
+
+.start-screen__panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-right: 44px;
+}
+
+.start-screen__panel-head .start-screen__recent-eyebrow {
+  margin-bottom: 16px;
+}
+
+.start-screen__panel-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+  padding: 4px 10px;
+  border-radius: var(--radius-border-inner);
+  border: 1px solid var(--color-border-subtle);
+  background: transparent;
+  color: var(--color-secondary-fg);
+  font-family: inherit;
+  font-size: 0.76rem;
+  cursor: pointer;
+}
+
+.start-screen__panel-action--danger:hover:not(:disabled) {
+  border-color: rgba(var(--color-accent-red-rgb), 0.35);
+  background: rgba(var(--color-accent-red-rgb), 0.08);
+  color: var(--color-accent-red);
+}
+
+.start-screen__trash-message {
+  margin: -6px 0 16px;
+  font-size: 0.78rem;
+  color: var(--color-secondary-fg);
+}
+
+.start-screen__board-tile--trash .start-screen__board-preview {
+  opacity: 0.6;
+}
+
+.start-screen__trash-actions {
+  display: flex;
+  gap: 6px;
+  padding: 0 12px 11px;
+}
+
+.start-screen__trash-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: var(--radius-border-inner);
+  border: 1px solid var(--color-border-subtle);
+  background: transparent;
+  color: var(--color-primary-fg);
+  font-family: inherit;
+  font-size: 0.74rem;
+  cursor: pointer;
+  flex: 1;
+}
+
+.start-screen__trash-btn:hover:not(:disabled) {
+  border-color: rgba(var(--color-accent-blue-rgb), 0.4);
+  color: var(--color-accent-blue);
+}
+
+.start-screen__trash-btn--danger {
+  flex: 0 0 28px;
+  padding: 0;
+  color: var(--color-muted-fg);
+}
+
+.start-screen__trash-btn--danger:hover:not(:disabled) {
+  border-color: rgba(var(--color-accent-red-rgb), 0.35);
+  color: var(--color-accent-red);
+}
+
+.start-screen__trash-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}

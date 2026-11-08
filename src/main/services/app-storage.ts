@@ -1,6 +1,6 @@
 import { app } from 'electron'
 import { constants } from 'fs'
-import { access, mkdir, readFile, readdir, unlink, writeFile } from 'fs/promises'
+import { access, mkdir, readFile, readdir, stat, unlink, writeFile } from 'fs/promises'
 import { basename, dirname, join, resolve as resolvePath, sep } from 'path'
 
 const APP_BOARDS_DIRECTORY_NAME = 'boards'
@@ -154,6 +154,122 @@ export async function trashBoard(boardPath: string): Promise<string> {
   }
 
   await writeFile(trashPath, boardJson, 'utf-8')
+  // Remember where it came from so it can be restored from the Trash view.
+  const meta: TrashMeta = { originalPath: boardPath, trashedAt: Date.now() }
+  await writeFile(trashMetaPath(trashPath), JSON.stringify(meta, null, 2), 'utf-8')
   await unlink(boardPath)
   return trashPath
+}
+
+// ── Trash (start screen "Trash" view) ─────────────────────────────────────────
+
+const TRASH_META_SUFFIX = '.trashmeta.json'
+
+type TrashMeta = { originalPath: string; trashedAt: number }
+
+export type TrashItem = {
+  trashPath: string
+  name: string
+  /** Where the board lived before being trashed; null for items trashed by older versions. */
+  originalPath: string | null
+  trashedAt: number
+}
+
+function trashMetaPath(trashPath: string): string {
+  return `${trashPath}${TRASH_META_SUFFIX}`
+}
+
+async function readTrashMeta(trashPath: string): Promise<TrashMeta | null> {
+  try {
+    const parsed = JSON.parse(await readFile(trashMetaPath(trashPath), 'utf-8')) as Partial<TrashMeta>
+    if (typeof parsed.originalPath !== 'string') return null
+    return {
+      originalPath: parsed.originalPath,
+      trashedAt: typeof parsed.trashedAt === 'number' ? parsed.trashedAt : 0
+    }
+  } catch {
+    return null
+  }
+}
+
+function assertInsideTrash(trashPath: string): void {
+  if (!isPathInsideDirectory(trashPath, getAppTrashDirectory()) || !isBoardFileName(basename(trashPath))) {
+    throw new Error(`Not a trashed board: ${trashPath}`)
+  }
+}
+
+async function removeIfExists(filePath: string): Promise<void> {
+  if (await pathExists(filePath)) await unlink(filePath)
+}
+
+export async function listTrash(): Promise<TrashItem[]> {
+  await ensureAppStorageDirectories()
+  const trashDirectory = getAppTrashDirectory()
+  const entries = await readdir(trashDirectory, { withFileTypes: true })
+  const items = await Promise.all(
+    entries
+      .filter((entry) => entry.isFile() && isBoardFileName(entry.name))
+      .map(async (entry): Promise<TrashItem> => {
+        const trashPath = join(trashDirectory, entry.name)
+        const meta = await readTrashMeta(trashPath)
+        let trashedAt = meta?.trashedAt ?? 0
+        if (!trashedAt) {
+          try {
+            trashedAt = (await stat(trashPath)).mtimeMs
+          } catch {
+            trashedAt = 0
+          }
+        }
+        return {
+          trashPath,
+          name: entry.name.replace(/\.wb\.json$/i, ''),
+          originalPath: meta?.originalPath ?? null,
+          trashedAt
+        }
+      })
+  )
+  return items.sort((a, b) => b.trashedAt - a.trashedAt)
+}
+
+/**
+ * Moves a trashed board back to where it was. If that folder is gone, or the
+ * board's origin is unknown, it is restored as a quickboard instead. Never
+ * overwrites an existing file.
+ */
+export async function restoreFromTrash(trashPath: string): Promise<string> {
+  assertInsideTrash(trashPath)
+  if (!(await pathExists(trashPath))) throw new Error(`Trashed board not found: ${trashPath}`)
+
+  const meta = await readTrashMeta(trashPath)
+  let targetDirectory = getAppBoardsDirectory()
+  let fileName = basename(meta?.originalPath ?? trashPath)
+  if (meta && (await pathExists(dirname(meta.originalPath)))) {
+    targetDirectory = dirname(meta.originalPath)
+  }
+  await mkdir(targetDirectory, { recursive: true })
+
+  let targetPath = join(targetDirectory, fileName)
+  let suffix = 1
+  while (await pathExists(targetPath)) {
+    fileName = basename(meta?.originalPath ?? trashPath).replace(/(\.wb\.json)$/i, ` (restored${suffix > 1 ? ` ${suffix}` : ''})$1`)
+    targetPath = join(targetDirectory, fileName)
+    suffix += 1
+  }
+
+  await writeFile(targetPath, await readFile(trashPath, 'utf-8'), 'utf-8')
+  await unlink(trashPath)
+  await removeIfExists(trashMetaPath(trashPath))
+  return targetPath
+}
+
+export async function deleteFromTrash(trashPath: string): Promise<void> {
+  assertInsideTrash(trashPath)
+  await removeIfExists(trashPath)
+  await removeIfExists(trashMetaPath(trashPath))
+}
+
+export async function emptyTrash(): Promise<number> {
+  const items = await listTrash()
+  for (const item of items) await deleteFromTrash(item.trashPath)
+  return items.length
 }

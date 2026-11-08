@@ -7,15 +7,19 @@ import './ExportZoneOverlay.css'
 export type ScreenRect = { x: number; y: number; width: number; height: number }
 
 type Handle = 'n' | 's' | 'e' | 'w' | 'ne' | 'nw' | 'se' | 'sw'
-type DragMode = { kind: 'move' } | { kind: 'resize'; handle: Handle } | { kind: 'draw' }
+type DragMode = { kind: 'move' } | { kind: 'resize'; handle: Handle } | { kind: 'pan' }
 
 const HANDLES: Handle[] = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']
 const MIN_SIZE = 24
 
 type ExportZoneOverlayProps = {
   busy: boolean
-  /** Converts a screen size to world units, for the size readout. */
-  zoom: number
+  /** Current board zoom, for the size readout in board units. */
+  getZoom: () => number
+  /** Pan the board under the (fixed) export area by screen pixels. */
+  onPanBy: (dx: number, dy: number) => void
+  /** Zoom the board around a screen point. */
+  onZoomAt: (factor: number, clientX: number, clientY: number) => void
   onExport: (rect: ScreenRect) => void
   onCancel: () => void
 }
@@ -46,21 +50,50 @@ function clampRect(rect: ScreenRect): ScreenRect {
  * Miro-style "export area" picker: dims the board, shows a rectangle that can be
  * moved, resized from its corners/edges, or redrawn by dragging on the dimmed area.
  */
-export function ExportZoneOverlay({ busy, zoom, onExport, onCancel }: ExportZoneOverlayProps): React.JSX.Element {
+export function ExportZoneOverlay({
+  busy,
+  getZoom,
+  onPanBy,
+  onZoomAt,
+  onExport,
+  onCancel
+}: ExportZoneOverlayProps): React.JSX.Element {
   const { t } = useTranslation()
   const [rect, setRect] = useState<ScreenRect>(initialRect)
-  const dragRef = useRef<{ mode: DragMode; startX: number; startY: number; start: ScreenRect } | null>(null)
+  const [panning, setPanning] = useState(false)
+  const [, setZoomTick] = useState(0)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const dragRef = useRef<{
+    mode: DragMode
+    startX: number
+    startY: number
+    lastX: number
+    lastY: number
+    start: ScreenRect
+  } | null>(null)
 
+  /**
+   * Left button: move the area (inside) / resize (handles) / pan the board (outside).
+   * Middle button: always pans the board, even inside the area.
+   */
   const beginDrag = useCallback(
     (mode: DragMode) => (event: React.PointerEvent) => {
-      if (event.button !== 0 || busy) return
+      if (busy) return
+      let nextMode = mode
+      if (event.button === 1) nextMode = { kind: 'pan' }
+      else if (event.button !== 0) return
       event.preventDefault()
       event.stopPropagation()
       ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
-      const start =
-        mode.kind === 'draw' ? { x: event.clientX, y: event.clientY, width: 0, height: 0 } : rect
-      dragRef.current = { mode, startX: event.clientX, startY: event.clientY, start }
-      if (mode.kind === 'draw') setRect({ ...start, width: MIN_SIZE, height: MIN_SIZE })
+      dragRef.current = {
+        mode: nextMode,
+        startX: event.clientX,
+        startY: event.clientY,
+        lastX: event.clientX,
+        lastY: event.clientY,
+        start: rect
+      }
+      if (nextMode.kind === 'pan') setPanning(true)
     },
     [busy, rect]
   )
@@ -72,26 +105,19 @@ export function ExportZoneOverlay({ busy, zoom, onExport, onCancel }: ExportZone
     const dy = event.clientY - drag.startY
     const s = drag.start
 
+    if (drag.mode.kind === 'pan') {
+      onPanBy(event.clientX - drag.lastX, event.clientY - drag.lastY)
+      drag.lastX = event.clientX
+      drag.lastY = event.clientY
+      return
+    }
+
     if (drag.mode.kind === 'move') {
       setRect(
         clampRect({
           ...s,
           x: Math.min(Math.max(0, s.x + dx), window.innerWidth - s.width),
           y: Math.min(Math.max(0, s.y + dy), window.innerHeight - s.height)
-        })
-      )
-      return
-    }
-
-    if (drag.mode.kind === 'draw') {
-      const x = Math.min(drag.startX, event.clientX)
-      const y = Math.min(drag.startY, event.clientY)
-      setRect(
-        clampRect({
-          x,
-          y,
-          width: Math.abs(event.clientX - drag.startX),
-          height: Math.abs(event.clientY - drag.startY)
         })
       )
       return
@@ -107,11 +133,12 @@ export function ExportZoneOverlay({ busy, zoom, onExport, onCancel }: ExportZone
     if (h.includes('n')) top = Math.min(s.y + dy, bottom - MIN_SIZE)
     if (h.includes('s')) bottom = Math.max(s.y + s.height + dy, top + MIN_SIZE)
     setRect(clampRect({ x: left, y: top, width: right - left, height: bottom - top }))
-  }, [])
+  }, [onPanBy])
 
   const endDrag = useCallback((event: React.PointerEvent) => {
     if (!dragRef.current) return
     dragRef.current = null
+    setPanning(false)
     try {
       ;(event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId)
     } catch {
@@ -135,14 +162,31 @@ export function ExportZoneOverlay({ busy, zoom, onExport, onCancel }: ExportZone
     return () => window.removeEventListener('keydown', onKey, true)
   }, [busy, onCancel, onExport, rect])
 
-  const worldW = Math.round(rect.width / (zoom || 1))
-  const worldH = Math.round(rect.height / (zoom || 1))
+  // Wheel zooms the board under the export area (native listener: needs passive: false).
+  useEffect(() => {
+    const root = rootRef.current
+    if (!root) return
+    const onWheel = (event: WheelEvent): void => {
+      event.preventDefault()
+      if (busy) return
+      onZoomAt(event.deltaY < 0 ? 1.1 : 1 / 1.1, event.clientX, event.clientY)
+      setZoomTick((v) => v + 1)
+    }
+    root.addEventListener('wheel', onWheel, { passive: false })
+    return () => root.removeEventListener('wheel', onWheel)
+  }, [busy, onZoomAt])
+
+  const zoom = getZoom() || 1
+  const worldW = Math.round(rect.width / zoom)
+  const worldH = Math.round(rect.height / zoom)
 
   return createPortal(
     <div
-      className={`export-zone${busy ? ' export-zone--busy' : ''}`}
+      ref={rootRef}
+      className={`export-zone${busy ? ' export-zone--busy' : ''}${panning ? ' export-zone--panning' : ''}`}
       data-board-capture="exclude"
-      onPointerDown={beginDrag({ kind: 'draw' })}
+      onPointerDown={beginDrag({ kind: 'pan' })}
+      onAuxClick={(e) => e.preventDefault()}
       onPointerMove={onPointerMove}
       onPointerUp={endDrag}
       onPointerCancel={endDrag}

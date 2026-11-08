@@ -1,13 +1,15 @@
 import { PetalField } from '@renderer/components/petal'
 import { useTranslation } from 'react-i18next'
+import type { BoardMetaPatch } from '@renderer/stores/board'
 
 type BoardSectionProps = {
   name: string | undefined
   brief: string | undefined
-  onChange: (patch: { name?: string; brief?: string }) => void
+  hideBackgroundDots: boolean
+  onChange: (patch: BoardMetaPatch) => void
 }
 
-export default function BoardSection({ name, brief, onChange }: BoardSectionProps) {
+export default function BoardSection({ name, brief, hideBackgroundDots, onChange }: BoardSectionProps) {
   const { t } = useTranslation()
 
   return (
@@ -29,6 +31,19 @@ export default function BoardSection({ name, brief, onChange }: BoardSectionProp
           rows={6}
           onChange={(e) => onChange({ brief: e.target.value })}
         />
+        <div className="settings-field">
+          <label className="settings-toggle">
+            <input
+              type="checkbox"
+              checked={!hideBackgroundDots}
+              onChange={(e) => onChange({ hideBackgroundDots: !e.target.checked })}
+            />
+            <span className="settings-toggle__label">{t('boardSettings.backgroundDotsLabel')}</span>
+          </label>
+          <span className="settings-field__hint" style={{ paddingLeft: 22 }}>
+            {t('boardSettings.backgroundDotsHint')}
+          </span>
+        </div>
       </div>
     </div>
   )

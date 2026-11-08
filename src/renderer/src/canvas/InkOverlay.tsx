@@ -9,6 +9,8 @@ import {
 import type { InkTool } from './InkToolbar'
 import { displayInkColor, useResolvedTheme } from '@renderer/theme/appearance'
 import { BOARD_MAX_ZOOM, BOARD_MIN_ZOOM } from './zoomLimits'
+import { useAppSettingsStore } from '@renderer/stores/app-settings'
+import { strokeOutlineOptions, strokeUsesPressure } from './inkStrokeOptions'
 import './InkOverlay.css'
 
 const ERASER_SCREEN_RADIUS = 20
@@ -16,6 +18,8 @@ const ERASER_SCREEN_RADIUS = 20
 export type InkPenStyle = {
   color: string
   width: number
+  /** Width follows pen pressure. */
+  pressure: boolean
 }
 
 type InkOverlayProps = {
@@ -26,6 +30,85 @@ type InkOverlayProps = {
   acetateStrokes: BoardInkStroke[]
   onTransfer: (stroke: BoardInkStroke) => void
   onEraseComplete: (erasedStrokes: BoardInkStroke[]) => void
+  /** Strokes picked by the area selection (pointer tool). */
+  selectedStrokeIds?: ReadonlySet<string>
+  /** Live offset (world units) applied to selected strokes while they are dragged. */
+  selectedStrokeOffset?: { dx: number; dy: number } | null
+  /** Dragging the selection box of selected strokes. `done` on release. */
+  onSelectedStrokesDrag?: (dx: number, dy: number, done: boolean) => void
+}
+
+const NO_SELECTION: ReadonlySet<string> = new Set()
+
+function isLightHex(hex: string): boolean {
+  const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex)
+  if (!m) return false
+  const full = m[1].length === 3 ? m[1].split('').map((c) => c + c).join('') : m[1]
+  const r = parseInt(full.slice(0, 2), 16)
+  const g = parseInt(full.slice(2, 4), 16)
+  const b = parseInt(full.slice(4, 6), 16)
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > 0.6
+}
+
+type CachedStrokePath = {
+  path: Path2D
+  minX: number
+  minY: number
+  maxX: number
+  maxY: number
+}
+
+/**
+ * Stroke outlines are computed once, in world space, and cached per stroke object
+ * (strokes are immutable). Drawing a frame is then just a transform + fill, so
+ * panning and zooming don't recompute every stroke on every frame.
+ */
+const strokePathCache = new WeakMap<BoardInkStroke, CachedStrokePath>()
+
+function getCachedStrokePath(stroke: BoardInkStroke): CachedStrokePath | null {
+  const cached = strokePathCache.get(stroke)
+  if (cached) return cached
+  if (stroke.samples.length < 2) return null
+  const pressure = strokeUsesPressure(stroke.dynamics)
+  const outline = getStroke(
+    (stroke.samples as InkBoardWorldSample[]).map((sample) => [sample.x, sample.y, pressure ? clampPressure(sample.pressure) : DEFAULT_PRESSURE]),
+    strokeOutlineOptions(stroke.style.width, pressure)
+  )
+  if (outline.length < 2) return null
+  const path = new Path2D()
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  outline.forEach(([x, y], index) => {
+    if (index === 0) path.moveTo(x, y)
+    else path.lineTo(x, y)
+    if (x < minX) minX = x
+    if (y < minY) minY = y
+    if (x > maxX) maxX = x
+    if (y > maxY) maxY = y
+  })
+  path.closePath()
+  const entry = { path, minX, minY, maxX, maxY }
+  strokePathCache.set(stroke, entry)
+  return entry
+}
+
+/** World-space bounds of a set of strokes (for the selection box). */
+function strokesBounds(strokes: BoardInkStroke[]): { minX: number; minY: number; maxX: number; maxY: number } | null {
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const stroke of strokes) {
+    const entry = getCachedStrokePath(stroke)
+    if (!entry) continue
+    minX = Math.min(minX, entry.minX)
+    minY = Math.min(minY, entry.minY)
+    maxX = Math.max(maxX, entry.maxX)
+    maxY = Math.max(maxY, entry.maxY)
+  }
+  return Number.isFinite(minX) ? { minX, minY, maxX, maxY } : null
 }
 
 export type BoardInkStroke = InkStroke & {
@@ -71,21 +154,15 @@ function worldToScreenPoint(
 function buildStrokeOutline(
   samples: InkBoardWorldSample[],
   viewport: { x: number; y: number; zoom: number },
-  width: number
+  width: number,
+  pressure = true
 ): Array<[number, number]> {
   const points: StrokePoint[] = samples.map((sample) => {
     const [x, y] = worldToScreenPoint(sample, viewport)
-    return [x, y, clampPressure(sample.pressure)]
+    return [x, y, pressure ? clampPressure(sample.pressure) : DEFAULT_PRESSURE]
   })
 
-  return getStroke(points, {
-    size: width * viewport.zoom,
-    thinning: 0.62,
-    smoothing: 0.58,
-    streamline: 0.44,
-    simulatePressure: true,
-    last: true
-  })
+  return getStroke(points, strokeOutlineOptions(width * viewport.zoom, pressure))
 }
 
 function makeSample(event: PointerEvent, viewport: { x: number; y: number; zoom: number }, bounds: DOMRect): InkBoardWorldSample {
@@ -114,7 +191,10 @@ export function InkOverlay({
   acetateVisible,
   acetateStrokes,
   onTransfer,
-  onEraseComplete
+  onEraseComplete,
+  selectedStrokeIds = NO_SELECTION,
+  selectedStrokeOffset = null,
+  onSelectedStrokesDrag
 }: InkOverlayProps) {
   const viewport = useViewport()
   const resolvedTheme = useResolvedTheme()
@@ -139,14 +219,36 @@ export function InkOverlay({
   const [currentSamples, setCurrentSamples] = useState<InkBoardWorldSample[]>([])
   const [erasedIds, setErasedIds] = useState<ReadonlySet<string>>(new Set())
   const currentOutline = useMemo(
-    () => (currentSamples.length > 1 ? buildStrokeOutline(currentSamples, viewport, penStyle.width) : []),
-    [currentSamples, viewport, penStyle.width]
+    () => (currentSamples.length > 1 ? buildStrokeOutline(currentSamples, viewport, penStyle.width, penStyle.pressure) : []),
+    [currentSamples, viewport, penStyle.width, penStyle.pressure]
   )
 
   useEffect(() => { acetateStrokesRef.current = acetateStrokes }, [acetateStrokes])
   useEffect(() => { activeToolRef.current = activeTool }, [activeTool])
   const penStyleRef = useRef<InkPenStyle>(penStyle)
   useEffect(() => { penStyleRef.current = penStyle }, [penStyle])
+
+  // Eraser guide: a small dot under the pointer, in the user's crosshair color.
+  // Positioned imperatively (no re-render per mouse move).
+  const eraserDotRef = useRef<HTMLDivElement | null>(null)
+  const crosshairColor = useAppSettingsStore((s) => s.appearance.crosshairColor)
+  const eraserDotColor = crosshairColor ?? (resolvedTheme === 'dark' ? '#f2f2f2' : '#111111')
+  const eraserDotHalo = isLightHex(eraserDotColor) ? 'rgba(17, 17, 17, 0.85)' : 'rgba(255, 255, 255, 0.95)'
+  const positionEraserDot = (event: PointerEvent): void => {
+    const dot = eraserDotRef.current
+    const root = rootRef.current
+    if (!dot || !root) return
+    if (activeToolRef.current !== 'eraser') {
+      dot.style.opacity = '0'
+      return
+    }
+    const bounds = root.getBoundingClientRect()
+    dot.style.transform = `translate(${event.clientX - bounds.left}px, ${event.clientY - bounds.top}px)`
+    dot.style.opacity = '1'
+  }
+  useEffect(() => {
+    if ((!active || activeTool !== 'eraser') && eraserDotRef.current) eraserDotRef.current.style.opacity = '0'
+  }, [active, activeTool])
   useEffect(() => { onEraseCompleteRef.current = onEraseComplete }, [onEraseComplete])
 
   useEffect(() => {
@@ -205,15 +307,50 @@ export function InkOverlay({
     const context = canvas.getContext('2d')
     if (!context) return
 
+    const pr = canvasSize.pixelRatio
+    context.setTransform(pr, 0, 0, pr, 0, 0)
     context.clearRect(0, 0, canvasSize.width, canvasSize.height)
     if (!acetateVisible) return
 
+    // Visible world rect (skip strokes entirely off screen).
+    const viewMinX = -viewport.x / viewport.zoom
+    const viewMinY = -viewport.y / viewport.zoom
+    const viewMaxX = viewMinX + canvasSize.width / viewport.zoom
+    const viewMaxY = viewMinY + canvasSize.height / viewport.zoom
+
     for (const stroke of acetateStrokes) {
       if (erasedIds.has(stroke.id)) continue
-      const outline = buildStrokeOutline(stroke.samples, viewport, stroke.style.width)
-      drawStrokePolygon(context, outline, displayInkColor(stroke.style.color, resolvedTheme), stroke.style.opacity)
+      const entry = getCachedStrokePath(stroke)
+      if (!entry) continue
+      const isSelected = selectedStrokeIds.has(stroke.id)
+      const dx = isSelected && selectedStrokeOffset ? selectedStrokeOffset.dx : 0
+      const dy = isSelected && selectedStrokeOffset ? selectedStrokeOffset.dy : 0
+      if (
+        entry.maxX + dx < viewMinX ||
+        entry.minX + dx > viewMaxX ||
+        entry.maxY + dy < viewMinY ||
+        entry.minY + dy > viewMaxY
+      ) {
+        continue
+      }
+
+      const scale = pr * viewport.zoom
+      context.setTransform(scale, 0, 0, scale, pr * viewport.x + dx * scale, pr * viewport.y + dy * scale)
+      if (isSelected) {
+        // Selection halo under the stroke.
+        context.globalAlpha = 0.5
+        context.lineJoin = 'round'
+        context.lineWidth = 6 / viewport.zoom
+        context.strokeStyle = '#1e87ff'
+        context.stroke(entry.path)
+      }
+      context.globalAlpha = stroke.style.opacity
+      context.fillStyle = displayInkColor(stroke.style.color, resolvedTheme)
+      context.fill(entry.path)
     }
-  }, [acetateStrokes, acetateVisible, canvasSize.height, canvasSize.width, viewport, erasedIds, resolvedTheme])
+    context.globalAlpha = 1
+    context.setTransform(pr, 0, 0, pr, 0, 0)
+  }, [acetateStrokes, acetateVisible, canvasSize.height, canvasSize.width, canvasSize.pixelRatio, viewport, erasedIds, resolvedTheme, selectedStrokeIds, selectedStrokeOffset])
 
   useEffect(() => {
     if (active) return
@@ -258,7 +395,7 @@ export function InkOverlay({
 
       if (tool === 'pen') {
         const bounds = root.getBoundingClientRect()
-        const sample = makeSample(event, viewport, bounds)
+        const sample = makeSample(event, getViewportRef.current(), bounds)
         currentSamplesRef.current = [sample]
         setCurrentSamples([sample])
         erasedIdsRef.current = new Set()
@@ -273,6 +410,7 @@ export function InkOverlay({
 
     const handlePointerMove = (event: PointerEvent) => {
       if (!active) return
+      positionEraserDot(event)
 
       // Middle mouse button pan
       if (panPointerIdRef.current === event.pointerId) {
@@ -293,7 +431,7 @@ export function InkOverlay({
 
       if (tool === 'pen') {
         const bounds = root.getBoundingClientRect()
-        const nextSample = makeSample(event, viewport, bounds)
+        const nextSample = makeSample(event, getViewportRef.current(), bounds)
         const previous = currentSamplesRef.current
         const last = previous[previous.length - 1]
 
@@ -305,7 +443,7 @@ export function InkOverlay({
         }
 
         const distance = Math.hypot(nextSample.x - last.x, nextSample.y - last.y)
-        if (distance < DEFAULT_INK_STROKE_DYNAMICS.sampleSpacing / Math.max(1, viewport.zoom)) {
+        if (distance < DEFAULT_INK_STROKE_DYNAMICS.sampleSpacing / Math.max(1, getViewportRef.current().zoom)) {
           event.preventDefault()
           return
         }
@@ -315,9 +453,9 @@ export function InkOverlay({
         setCurrentSamples(next)
       } else if (tool === 'eraser') {
         const bounds = root.getBoundingClientRect()
-        const worldX = (event.clientX - bounds.left - viewport.x) / viewport.zoom
-        const worldY = (event.clientY - bounds.top - viewport.y) / viewport.zoom
-        const eraserWorldRadius = ERASER_SCREEN_RADIUS / viewport.zoom
+        const worldX = (event.clientX - bounds.left - getViewportRef.current().x) / getViewportRef.current().zoom
+        const worldY = (event.clientY - bounds.top - getViewportRef.current().y) / getViewportRef.current().zoom
+        const eraserWorldRadius = ERASER_SCREEN_RADIUS / getViewportRef.current().zoom
 
         const strokes = acetateStrokesRef.current
         let changed = false
@@ -354,7 +492,7 @@ export function InkOverlay({
         const bounds = includeFinalSample ? root.getBoundingClientRect() : null
         const finalSample =
           includeFinalSample && bounds !== null && isValidPointerSample(event)
-            ? makeSample(event, viewport, bounds)
+            ? makeSample(event, getViewportRef.current(), bounds)
             : null
 
         const previous = currentSamplesRef.current
@@ -378,7 +516,7 @@ export function InkOverlay({
               color: penStyleRef.current.color,
               width: penStyleRef.current.width
             },
-            dynamics: { ...DEFAULT_INK_STROKE_DYNAMICS },
+            dynamics: { ...DEFAULT_INK_STROKE_DYNAMICS, pressure: penStyleRef.current.pressure },
             samples,
             createdAt: new Date().toISOString()
           })
@@ -414,18 +552,24 @@ export function InkOverlay({
       finalizeStroke(event, false)
     }
 
+    const handlePointerLeave = (): void => {
+      if (eraserDotRef.current) eraserDotRef.current.style.opacity = '0'
+    }
+
     root.addEventListener('pointerdown', handlePointerDown)
     root.addEventListener('pointermove', handlePointerMove)
+    root.addEventListener('pointerleave', handlePointerLeave)
     root.addEventListener('pointerup', handlePointerUp)
     root.addEventListener('pointercancel', handlePointerCancel)
 
     return () => {
       root.removeEventListener('pointerdown', handlePointerDown)
       root.removeEventListener('pointermove', handlePointerMove)
+      root.removeEventListener('pointerleave', handlePointerLeave)
       root.removeEventListener('pointerup', handlePointerUp)
       root.removeEventListener('pointercancel', handlePointerCancel)
     }
-  }, [active, onTransfer, viewport])
+  }, [active, onTransfer])
 
   useEffect(() => {
     const root = rootRef.current
@@ -457,6 +601,22 @@ export function InkOverlay({
     return () => root.removeEventListener('wheel', handleWheel)
   }, [active])
 
+  const selectionDragRef = useRef<{ startX: number; startY: number } | null>(null)
+  const selectionBox = useMemo(() => {
+    if (active || !acetateVisible || selectedStrokeIds.size === 0) return null
+    const bounds = strokesBounds(acetateStrokes.filter((s) => selectedStrokeIds.has(s.id)))
+    if (!bounds) return null
+    const dx = selectedStrokeOffset?.dx ?? 0
+    const dy = selectedStrokeOffset?.dy ?? 0
+    const pad = 6
+    return {
+      left: (bounds.minX + dx) * viewport.zoom + viewport.x - pad,
+      top: (bounds.minY + dy) * viewport.zoom + viewport.y - pad,
+      width: (bounds.maxX - bounds.minX) * viewport.zoom + pad * 2,
+      height: (bounds.maxY - bounds.minY) * viewport.zoom + pad * 2
+    }
+  }, [active, acetateVisible, acetateStrokes, selectedStrokeIds, selectedStrokeOffset, viewport])
+
   return (
     <div
       ref={rootRef}
@@ -471,6 +631,42 @@ export function InkOverlay({
         ref={glassCanvasRef}
         className={`ink-overlay__canvas ink-overlay__canvas--glass${active ? ' ink-overlay__canvas--visible' : ''}`}
       />
+      <div
+        ref={eraserDotRef}
+        className="ink-overlay__eraser-dot"
+        style={{ ['--eraser-dot-color' as string]: eraserDotColor, ['--eraser-dot-halo' as string]: eraserDotHalo }}
+      />
+      {selectionBox ? (
+        <div
+          className="ink-overlay__selection-box nodrag nopan"
+          style={{
+            left: selectionBox.left,
+            top: selectionBox.top,
+            width: selectionBox.width,
+            height: selectionBox.height
+          }}
+          onPointerDown={(event) => {
+            if (event.button !== 0 || !onSelectedStrokesDrag) return
+            event.preventDefault()
+            event.stopPropagation()
+            event.currentTarget.setPointerCapture(event.pointerId)
+            selectionDragRef.current = { startX: event.clientX, startY: event.clientY }
+          }}
+          onPointerMove={(event) => {
+            const drag = selectionDragRef.current
+            if (!drag || !onSelectedStrokesDrag) return
+            const zoom = getViewportRef.current().zoom || 1
+            onSelectedStrokesDrag((event.clientX - drag.startX) / zoom, (event.clientY - drag.startY) / zoom, false)
+          }}
+          onPointerUp={(event) => {
+            const drag = selectionDragRef.current
+            if (!drag || !onSelectedStrokesDrag) return
+            selectionDragRef.current = null
+            const zoom = getViewportRef.current().zoom || 1
+            onSelectedStrokesDrag((event.clientX - drag.startX) / zoom, (event.clientY - drag.startY) / zoom, true)
+          }}
+        />
+      ) : null}
     </div>
   )
 }

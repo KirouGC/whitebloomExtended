@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Eraser, Pen, Plus, Trash2 } from 'lucide-react'
 import { CanvasToolbar, CanvasToolbarBtn, CanvasToolbarSep, useCanvasToolbarPopover } from './CanvasToolbar'
 import { CanvasPopover } from './CanvasPopover'
+import { ShortcutTip } from '@renderer/components/petal/ShortcutTip'
 import { useAppSettingsStore } from '@renderer/stores/app-settings'
 import { MAX_PEN_WIDTH, MIN_PEN_WIDTH } from '../../../shared/app-settings'
 import { INK_PEN_COLORS, PEN_WIDTH_PRESETS, previewDotSize, useInkPenStyle } from './inkPen'
@@ -50,17 +51,14 @@ function PenStyleControl({ popoverId }: PenStyleControlProps): React.JSX.Element
 
   return (
     <div className="canvas-control" ref={controlRef}>
-      <CanvasToolbarBtn
-        popoverId={popoverId}
-        active={open}
-        aria-label={t('inkToolbar.penStyleLabel')}
-        title={t('inkToolbar.penStyleLabel')}
-      >
-        <span
-          className="ink-pen-dot"
-          style={{ width: dot, height: dot, backgroundColor: penStyle.color }}
-        />
-      </CanvasToolbarBtn>
+      <ShortcutTip label={t('inkToolbar.penStyleLabel')}>
+        <CanvasToolbarBtn popoverId={popoverId} active={open} aria-label={t('inkToolbar.penStyleLabel')}>
+          <span
+            className="ink-pen-dot"
+            style={{ width: dot, height: dot, backgroundColor: penStyle.color }}
+          />
+        </CanvasToolbarBtn>
+      </ShortcutTip>
 
       {open && (
         <CanvasPopover anchorRef={controlRef}>
@@ -143,6 +141,17 @@ function PenStyleControl({ popoverId }: PenStyleControlProps): React.JSX.Element
               onChange={(e) => void updatePenStyle({ penWidth: Number(e.target.value) })}
             />
 
+            <label className="ink-pen-picker__check">
+              <input
+                type="checkbox"
+                checked={penStyle.pressure}
+                onChange={(e) => void updatePenStyle({ pressureSensitive: e.target.checked })}
+                onMouseDown={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+              />
+              <span>{t('inkToolbar.pressureLabel')}</span>
+            </label>
+
             <div className="ink-pen-picker__preview" aria-hidden>
               <svg viewBox="0 0 168 40" width="168" height="40">
                 <path
@@ -193,27 +202,31 @@ function InkToolbarContent({ activeTool, onToolChange, onClearLayer }: InkToolba
 
   return (
     <>
-      <CanvasToolbarBtn
-        active={activeTool === 'pen'}
-        preserveOpenPopover
-        onClick={() => {
-          // Like Whiteboard: tapping the already-selected pen opens its settings.
-          if (activeTool === 'pen') setOpen(!open)
-          else onToolChange('pen')
-        }}
-        aria-label={t('inkToolbar.penLabel')}
-        title={t('inkToolbar.penLabel')}
-      >
-        <Pen size={14} strokeWidth={1.8} />
-      </CanvasToolbarBtn>
-      <CanvasToolbarBtn
-        active={activeTool === 'eraser'}
-        onClick={() => onToolChange('eraser')}
-        aria-label={t('inkToolbar.eraserLabel')}
-        title={t('inkToolbar.eraserLabel')}
-      >
-        <Eraser size={14} strokeWidth={1.8} />
-      </CanvasToolbarBtn>
+      <ShortcutTip label={t('inkToolbar.penLabel')} shortcut="P">
+        <CanvasToolbarBtn
+          active={activeTool === 'pen'}
+          preserveOpenPopover
+          onClick={() => {
+            // Like Whiteboard: tapping the already-selected pen opens its settings.
+            if (activeTool === 'pen') setOpen(!open)
+            else onToolChange('pen')
+          }}
+          aria-label={t('inkToolbar.penLabel')}
+          aria-keyshortcuts="P"
+        >
+          <Pen size={14} strokeWidth={1.8} />
+        </CanvasToolbarBtn>
+      </ShortcutTip>
+      <ShortcutTip label={t('inkToolbar.eraserLabel')} shortcut="E">
+        <CanvasToolbarBtn
+          active={activeTool === 'eraser'}
+          onClick={() => onToolChange('eraser')}
+          aria-label={t('inkToolbar.eraserLabel')}
+          aria-keyshortcuts="E"
+        >
+          <Eraser size={14} strokeWidth={1.8} />
+        </CanvasToolbarBtn>
+      </ShortcutTip>
       <CanvasToolbarSep />
       {quickColors.map((c) => {
         const selected = penStyle.color.toLowerCase() === c.value
@@ -234,13 +247,11 @@ function InkToolbarContent({ activeTool, onToolChange, onClearLayer }: InkToolba
       })}
       <PenStyleControl popoverId={popoverId} />
       <CanvasToolbarSep />
-      <CanvasToolbarBtn
-        onClick={onClearLayer}
-        aria-label={t('inkToolbar.clearLabel')}
-        title={t('inkToolbar.clearLabel')}
-      >
-        <Trash2 size={14} strokeWidth={1.8} />
-      </CanvasToolbarBtn>
+      <ShortcutTip label={t('inkToolbar.clearLabel')}>
+        <CanvasToolbarBtn onClick={onClearLayer} aria-label={t('inkToolbar.clearLabel')}>
+          <Trash2 size={14} strokeWidth={1.8} />
+        </CanvasToolbarBtn>
+      </ShortcutTip>
     </>
   )
 }

@@ -38,7 +38,8 @@ export function PdfAcetateCanvas({
         stroke.samples,
         pageWidth,
         pageHeight,
-        stroke.style.width
+        stroke.style.width,
+        stroke.dynamics?.pressure !== false
       )
       drawStrokePolygon(context, outline, stroke.style.color, stroke.style.opacity)
     }

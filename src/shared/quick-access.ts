@@ -18,6 +18,13 @@ export type QuickAccessPickFolderResult = {
   folderPath?: string
 }
 
+export type TrashItem = {
+  trashPath: string
+  name: string
+  originalPath: string | null
+  trashedAt: number
+}
+
 /** Raster formats the board exporter can produce. */
 export type ExportImageFormat = 'png' | 'jpg' | 'jpeg' | 'webp' | 'bmp'
 

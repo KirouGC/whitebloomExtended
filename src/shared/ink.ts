@@ -59,6 +59,11 @@ export type InkStrokeDynamics = {
    * Used to avoid storing excessively dense duplicate samples.
    */
   sampleSpacing: number
+  /**
+   * Whether the stroke width follows pen pressure. `false` = constant width.
+   * Omitted on strokes saved before the option existed (they used pressure).
+   */
+  pressure?: boolean
 }
 
 export type InkBoardWorldSample = {

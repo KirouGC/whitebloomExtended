@@ -3,12 +3,14 @@ import { getStroke } from 'perfect-freehand'
 import type { InkBoardWorldSample } from '../../../shared/ink'
 import type { ExportImageFormat } from '../../../shared/quick-access'
 import { displayInkColor, type ResolvedTheme } from '@renderer/theme/appearance'
+import { strokeOutlineOptions, strokeUsesPressure } from './inkStrokeOptions'
 
 export type WorldRect = { x: number; y: number; width: number; height: number }
 
 export type ExportInkStroke = {
   samples: InkBoardWorldSample[]
   style: { color: string; width: number; opacity: number }
+  dynamics?: { pressure?: boolean }
 }
 
 /** Padding (world units) around content for "Export all", like Whiteboard's auto-crop. */
@@ -120,16 +122,10 @@ function drawInk(
   context.setTransform(scale, 0, 0, scale, -rect.x * scale, -rect.y * scale)
   for (const stroke of strokes) {
     if (stroke.samples.length < 2) continue
+    const pressure = strokeUsesPressure(stroke.dynamics)
     const outline = getStroke(
-      stroke.samples.map((s) => [s.x, s.y, s.pressure > 0 ? s.pressure : 0.5]),
-      {
-        size: stroke.style.width,
-        thinning: 0.62,
-        smoothing: 0.58,
-        streamline: 0.44,
-        simulatePressure: true,
-        last: true
-      }
+      stroke.samples.map((s) => [s.x, s.y, pressure && s.pressure > 0 ? s.pressure : 0.5]),
+      strokeOutlineOptions(stroke.style.width, pressure)
     )
     if (outline.length < 2) continue
     context.beginPath()

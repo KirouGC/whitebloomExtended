@@ -28,6 +28,8 @@ export default function AppearanceFields(): React.JSX.Element {
   const crosshairColor = useAppSettingsStore((s) => s.appearance.crosshairColor)
   const updateTheme = useAppSettingsStore((s) => s.updateTheme)
   const updateCrosshairColor = useAppSettingsStore((s) => s.updateCrosshairColor)
+  const backgroundDots = useAppSettingsStore((s) => s.appearance.backgroundDots)
+  const updateBackgroundDots = useAppSettingsStore((s) => s.updateBackgroundDots)
   const colorInputRef = useRef<HTMLInputElement>(null)
 
   const themeOptions: Array<{ value: ThemePreference; label: string; icon: React.ReactNode }> = [
@@ -63,6 +65,20 @@ export default function AppearanceFields(): React.JSX.Element {
             </button>
           ))}
         </div>
+      </div>
+
+      <div className="settings-field">
+        <label className="settings-toggle">
+          <input
+            type="checkbox"
+            checked={backgroundDots}
+            onChange={(e) => void updateBackgroundDots(e.target.checked)}
+          />
+          <span className="settings-toggle__label">{t('appSettings.backgroundDotsLabel')}</span>
+        </label>
+        <span className="settings-field__hint" style={{ paddingLeft: 22 }}>
+          {t('appSettings.backgroundDotsHint')}
+        </span>
       </div>
 
       <div className="settings-field">

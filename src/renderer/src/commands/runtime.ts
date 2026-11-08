@@ -1,5 +1,19 @@
 import { getAllRegisteredCommands } from './registry'
 import { useHistoryStore } from '../history/store'
+import { flushBoardHistory } from '../history/boardHistory'
+
+// Board-document commands whose effects the snapshot history already records
+// (ids from WHITEBLOOM_COMMAND_IDS.canvas; literal here to avoid an import cycle).
+const SNAPSHOT_COVERED = new Set<string>([
+  'board.add-bud',
+  'selection.delete',
+  'selection.align-horizontal-center',
+  'selection.align-vertical-center',
+  'board.add-edge'
+])
+function SNAPSHOT_COVERED_COMMANDS(): Set<string> {
+  return SNAPSHOT_COVERED
+}
 import type {
   AnyWhitebloomCommandContext,
   WhitebloomCommandArgsSchema,
@@ -271,8 +285,14 @@ export async function executeRegisteredCommand<
       result
     })
 
+    // Board-document commands are covered by the snapshot history (boardHistory.ts);
+    // pushing their own undo too would make Ctrl+Z need two presses.
+    const coveredBySnapshots = SNAPSHOT_COVERED_COMMANDS().has(entry.command.core.id)
+
     // Push to history if the command declares an undo function.
-    if (entry.command.core.undo) {
+    if (entry.command.core.undo && !coveredBySnapshots) {
+      // Keep ordering: commit any pending board gesture before this entry.
+      flushBoardHistory()
       const undoFn = entry.command.core.undo
       const redoFn = entry.command.core.run
       const capturedArgs = normalizedArgs as TArgs

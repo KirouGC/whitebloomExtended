@@ -1,6 +1,7 @@
 import { createBuiltinCommandProvider, registerCommandProvider } from './registry'
 import { useBoardStore } from '../stores/board'
 import { useHistoryStore } from '../history/store'
+import { flushBoardHistory } from '../history/boardHistory'
 import {
   Archive,
   ArrowDownToLine,
@@ -83,6 +84,7 @@ export const WHITEBLOOM_COMMAND_IDS = {
     inkAppendStroke: 'ink.append-stroke',
     inkClearLayer: 'ink.clear-layer',
     inkEraseStrokes: 'ink.erase-strokes',
+    inkReplaceStrokes: 'ink.replace-strokes',
     historyUndo: 'history.undo',
     historyRedo: 'history.redo'
   },
@@ -1664,8 +1666,27 @@ const canvasContextualCommands: WhitebloomCommandForContext<CanvasCommandContext
 type InkAppendStrokeArgs = { binding: InkSurfaceBinding; stroke: InkStroke }
 type InkClearLayerArgs = { binding: InkSurfaceBinding }
 type InkEraseStrokesArgs = { binding: InkSurfaceBinding; erasedStrokes: InkStroke[] }
+/** Replace the whole layer (used to move selected strokes); undo restores `before`. */
+type InkReplaceStrokesArgs = { binding: InkSurfaceBinding; before: InkStroke[]; after: InkStroke[] }
 
 const inkCommands: WhitebloomCommandForContext<CanvasCommandContext>[] = [
+  {
+    core: {
+      id: WHITEBLOOM_COMMAND_IDS.canvas.inkReplaceStrokes,
+      kind: 'action',
+      modeScope: ['canvas-mode'] as const,
+      enabledWhen: (context) => typeof context.actions.restoreInkStrokes === 'function',
+      run: async (args: InkReplaceStrokesArgs, context) => {
+        if (!context.actions.restoreInkStrokes) {
+          throw new Error('Canvas context cannot replace ink strokes.')
+        }
+        await context.actions.restoreInkStrokes(args.binding, args.after)
+      },
+      undo: async (args: InkReplaceStrokesArgs, _, context) => {
+        await context.actions.restoreInkStrokes?.(args.binding, args.before)
+      }
+    }
+  },
   {
     core: {
       id: WHITEBLOOM_COMMAND_IDS.canvas.inkAppendStroke,
@@ -1718,6 +1739,12 @@ const inkCommands: WhitebloomCommandForContext<CanvasCommandContext>[] = [
         await context.actions.eraseInkStrokes(args.binding, args.erasedStrokes)
       },
       undo: async (args: InkEraseStrokesArgs, _, context) => {
+        const actions = context.actions as { addInkStrokes?: (b: InkSurfaceBinding, s: InkStroke[]) => Promise<void> }
+        if (actions.addInkStrokes) {
+          // One update for the whole set (a big area erase can be hundreds of strokes).
+          await actions.addInkStrokes(args.binding, args.erasedStrokes)
+          return
+        }
         for (const stroke of args.erasedStrokes) {
           await context.actions.appendInkStroke?.(args.binding, stroke)
         }
@@ -1725,6 +1752,18 @@ const inkCommands: WhitebloomCommandForContext<CanvasCommandContext>[] = [
     }
   }
 ]
+
+/**
+ * Undo/redo steps run strictly one after another, so pressing Ctrl+Z quickly
+ * never interleaves two async steps (which could leave the board half-applied).
+ */
+let historyChain: Promise<unknown> = Promise.resolve()
+function runHistoryStep(step: () => void | Promise<void>): Promise<unknown> {
+  historyChain = historyChain.then(step).catch((error) => {
+    console.error('[history] step failed', error)
+  })
+  return historyChain
+}
 
 const historyCommands: WhitebloomCommandForContext<CanvasCommandContext>[] = [
   {
@@ -1734,12 +1773,14 @@ const historyCommands: WhitebloomCommandForContext<CanvasCommandContext>[] = [
       modeScope: ['canvas-mode', 'module:com.whitebloom.pdf'] as const,
       aliases: ['undo'],
       enabledWhen: (context) => {
+        if (context.majorMode === 'canvas-mode') flushBoardHistory()
         const { undoTop } = useHistoryStore.getState().peek(context.majorMode)
         return undoTop !== undefined
       },
       run: (_, context) => {
+        if (context.majorMode === 'canvas-mode') flushBoardHistory()
         const entry = useHistoryStore.getState().undo(context.majorMode)
-        if (entry) void entry.undoFn()
+        if (entry) void runHistoryStep(() => entry.undoFn())
       }
     },
     presentations: [
@@ -1758,12 +1799,14 @@ const historyCommands: WhitebloomCommandForContext<CanvasCommandContext>[] = [
       modeScope: ['canvas-mode', 'module:com.whitebloom.pdf'] as const,
       aliases: ['redo'],
       enabledWhen: (context) => {
+        if (context.majorMode === 'canvas-mode') flushBoardHistory()
         const { redoTop } = useHistoryStore.getState().peek(context.majorMode)
         return redoTop !== undefined
       },
       run: (_, context) => {
+        if (context.majorMode === 'canvas-mode') flushBoardHistory()
         const entry = useHistoryStore.getState().redo(context.majorMode)
-        if (entry) void entry.redoFn()
+        if (entry) void runHistoryStep(() => entry.redoFn())
       }
     },
     presentations: [

@@ -4,7 +4,7 @@
   position: fixed;
   inset: 0;
   z-index: 1200;
-  cursor: crosshair;
+  cursor: grab;
   user-select: none;
   touch-action: none;
 }
@@ -163,4 +163,9 @@
 
 .export-toast--error {
   border-left: 3px solid var(--color-accent-red);
+}
+
+.export-zone--panning,
+.export-zone--panning .export-zone__rect {
+  cursor: grabbing;
 }

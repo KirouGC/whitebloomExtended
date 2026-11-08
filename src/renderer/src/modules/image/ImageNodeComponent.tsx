@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
-import { useInternalNode, useStore, useUpdateNodeInternals, useViewport } from '@xyflow/react'
+import { useInternalNode, useUpdateNodeInternals } from '@xyflow/react'
+import { useNodeVisibility } from '../../canvas/useNodeVisibility'
 import { useBoardStore } from '@renderer/stores/board'
 import { resourceToImageSrc } from '@renderer/shared/resource-url'
 import { NodeResizeHandles } from '../../canvas/NodeResizeHandles'
@@ -14,14 +15,11 @@ export function ImageNodeComponent({ id, resource, size, selected, dragging, onB
   const positionAbsoluteX = internalNode?.internals.positionAbsolute.x ?? 0
   const positionAbsoluteY = internalNode?.internals.positionAbsolute.y ?? 0
 
-  const { x, y, zoom } = useViewport()
-  const canvasWidth = useStore((s) => s.width)
-  const canvasHeight = useStore((s) => s.height)
   const updateNodePosition = useBoardStore((s) => s.updateNodePosition)
   const updateNodeSize = useBoardStore((s) => s.updateNodeSize)
   const updateNodeInternals = useUpdateNodeInternals()
 
-  const [isVisible, setIsVisible] = useState(true)
+  const { ref: visibilityRef, isVisible } = useNodeVisibility<HTMLDivElement>()
   const [localSize, setLocalSize] = useState({ w: size.w, h: size.h })
   const [imageSrc, setImageSrc] = useState('')
 
@@ -69,30 +67,11 @@ export function ImageNodeComponent({ id, resource, size, selected, dragging, onB
     updateNodeInternals(id)
   }, [id, localSize.h, localSize.w, updateNodeInternals])
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      const nodeScreenX = positionAbsoluteX * zoom + x
-      const nodeScreenY = positionAbsoluteY * zoom + y
-      const nodeScreenW = localSize.w * zoom
-      const nodeScreenH = localSize.h * zoom
-      const bufferX = canvasWidth * 0.15
-      const bufferY = canvasHeight * 0.15
-
-      const visible =
-        nodeScreenX + nodeScreenW > -bufferX &&
-        nodeScreenX < canvasWidth + bufferX &&
-        nodeScreenY + nodeScreenH > -bufferY &&
-        nodeScreenY < canvasHeight + bufferY
-
-      setIsVisible(visible)
-    }, 400)
-
-    return () => clearTimeout(timer)
-  }, [x, y, zoom, positionAbsoluteX, positionAbsoluteY, localSize.w, localSize.h, canvasWidth, canvasHeight])
 
   return (
     <>
       <div
+        ref={visibilityRef}
         className={`image-node${selected ? ' image-node--selected' : ''}${isResizing ? ' image-node--resizing nodrag nopan' : ''}`}
         style={{ width: localSize.w, height: localSize.h }}
         onDoubleClick={(e) => { e.stopPropagation(); onBloom() }}

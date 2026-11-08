@@ -206,3 +206,9 @@
       0 0 36px 12px rgba(var(--cluster-color-rgb), 0.13);
   }
 }
+
+/* Pause the backdrop blur while panning/zooming: re-blurring large frames on every
+   frame is expensive and made moving around the board stutter. */
+.wb-moving .cluster-node {
+  backdrop-filter: none;
+}

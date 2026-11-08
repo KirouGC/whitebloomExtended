@@ -3,6 +3,7 @@ import { writeFile } from 'fs/promises'
 import { extname } from 'path'
 import { t } from '../i18n'
 import { listWorkspacesInFolder } from '../services/quick-access'
+import { deleteFromTrash, emptyTrash, listTrash, restoreFromTrash } from '../services/app-storage'
 import {
   EXPORT_IMAGE_FORMATS,
   type ExportImageFormat,
@@ -45,6 +46,39 @@ export function registerExtrasIpc(): void {
       return listWorkspacesInFolder(folderPath)
     }
   )
+
+  ipcMain.handle('trash:list', async () => {
+    try {
+      return { ok: true, items: await listTrash() }
+    } catch {
+      return { ok: false, items: [] }
+    }
+  })
+
+  ipcMain.handle('trash:restore', async (_event, trashPath: string) => {
+    try {
+      return { ok: true, restoredPath: await restoreFromTrash(trashPath) }
+    } catch {
+      return { ok: false }
+    }
+  })
+
+  ipcMain.handle('trash:delete', async (_event, trashPath: string) => {
+    try {
+      await deleteFromTrash(trashPath)
+      return { ok: true }
+    } catch {
+      return { ok: false }
+    }
+  })
+
+  ipcMain.handle('trash:empty', async () => {
+    try {
+      return { ok: true, deleted: await emptyTrash() }
+    } catch {
+      return { ok: false, deleted: 0 }
+    }
+  })
 
   ipcMain.handle(
     'export:pick-image-path',

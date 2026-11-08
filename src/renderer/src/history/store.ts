@@ -24,7 +24,7 @@ export type HistoryEntry = {
 // Store shape
 // ---------------------------------------------------------------------------
 
-const MAX_DEPTH = 100
+const MAX_DEPTH = 300
 
 type ModeStack = {
   undo: HistoryEntry[]
@@ -42,6 +42,12 @@ type HistoryActions = {
   undo: (modeKey: WhitebloomCommandModeKey) => HistoryEntry | undefined
   redo: (modeKey: WhitebloomCommandModeKey) => HistoryEntry | undefined
   clear: (modeKey: WhitebloomCommandModeKey) => void
+  /**
+   * Merge every undo entry pushed since the stack had `undoLength` entries into a
+   * single step (e.g. moving nodes and ink together = one Ctrl+Z).
+   */
+  mergeSince: (modeKey: WhitebloomCommandModeKey, undoLength: number) => void
+  undoLength: (modeKey: WhitebloomCommandModeKey) => number
   peek: (modeKey: WhitebloomCommandModeKey) => { undoTop: HistoryEntry | undefined; redoTop: HistoryEntry | undefined }
 }
 
@@ -147,6 +153,32 @@ export const useHistoryStore = create<HistoryState & HistoryActions>((set, get) 
     })
 
     return entry
+  },
+
+  mergeSince(modeKey, undoLength) {
+    set((state) => {
+      const current = state.stacks[modeKey]
+      if (!current || current.undo.length - undoLength < 2) return state
+      const parts = current.undo.slice(undoLength)
+      const merged: HistoryEntry = {
+        id: parts[parts.length - 1].id,
+        modeKey,
+        envelopes: parts.flatMap((p) => p.envelopes),
+        undoFn: async () => {
+          for (const part of [...parts].reverse()) await part.undoFn()
+        },
+        redoFn: async () => {
+          for (const part of parts) await part.redoFn()
+        }
+      }
+      const stacks = { ...state.stacks }
+      stacks[modeKey] = { undo: [...current.undo.slice(0, undoLength), merged], redo: current.redo }
+      return { stacks, openGroupId: undefined }
+    })
+  },
+
+  undoLength(modeKey) {
+    return get().stacks[modeKey]?.undo.length ?? 0
   },
 
   clear(modeKey) {

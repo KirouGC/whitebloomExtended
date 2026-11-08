@@ -4,19 +4,21 @@ import { useWorkspaceStore } from '@renderer/stores/workspace'
 import BoardSection from './BoardSection'
 import WorkspaceSection from './WorkspaceSection'
 import AppSection from './AppSection'
+import type { BoardMetaPatch } from '@renderer/stores/board'
 import './SettingsModal.css'
 
 type Props = {
   /** Board settings are shown only when a board is open (omit `onChange` elsewhere, e.g. the start screen). */
   name?: string | undefined
   brief?: string | undefined
-  onChange?: (patch: { name?: string; brief?: string }) => void
+  hideBackgroundDots?: boolean
+  onChange?: (patch: BoardMetaPatch) => void
   onClose: () => void
 }
 
 type Section = 'board' | 'workspace' | 'app'
 
-export default function SettingsModal({ name, brief, onChange, onClose }: Props) {
+export default function SettingsModal({ name, brief, hideBackgroundDots = false, onChange, onClose }: Props) {
   const { t } = useTranslation()
   const hasWorkspace = useWorkspaceStore((s) => s.root !== null)
   const hasBoard = onChange !== undefined
@@ -63,7 +65,7 @@ export default function SettingsModal({ name, brief, onChange, onClose }: Props)
 
         <div className="settings-modal__content">
           {activeSection === 'board' && onChange && (
-            <BoardSection name={name} brief={brief} onChange={onChange} />
+            <BoardSection name={name} brief={brief} hideBackgroundDots={hideBackgroundDots} onChange={onChange} />
           )}
           {activeSection === 'workspace' && hasWorkspace && <WorkspaceSection />}
           {activeSection === 'app' && <AppSection />}

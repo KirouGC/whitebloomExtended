@@ -22,6 +22,7 @@ import {
   normalizeFolderKey,
   type QuickAccessListResult
 } from '../../../../shared/quick-access'
+import TrashPanel from './TrashPanel'
 import './StartScreen.css'
 
 type RecentBoard = {
@@ -46,10 +47,11 @@ type StartScreenProps = {
   onTrashBoard: (boardPath: string) => void
   onOpenWorkspaceRoot: (workspaceRoot: string) => void
   onOpenSettings: () => void
+  onTrashRestored: () => void
 }
 
 /** Which panel the large right-hand area shows. */
-type StartSection = { kind: 'recent' } | { kind: 'folder'; path: string }
+type StartSection = { kind: 'recent' } | { kind: 'trash' } | { kind: 'folder'; path: string }
 
 const QUICK_ACCESS_EXPANDED_KEY = 'wb:start:quick-access-expanded'
 
@@ -175,7 +177,8 @@ export default function StartScreen({
   onOpenRecentBoard,
   onTrashBoard,
   onOpenWorkspaceRoot,
-  onOpenSettings
+  onOpenSettings,
+  onTrashRestored
 }: StartScreenProps): React.JSX.Element {
   const { t } = useTranslation()
   const folders = useAppSettingsStore((s) => s.quickAccess.folders)
@@ -323,6 +326,18 @@ export default function StartScreen({
         </nav>
 
         {errorMessage ? <p className="start-screen__error">{errorMessage}</p> : null}
+
+        <div className="start-screen__sidebar-bottom">
+          <button
+            type="button"
+            className={`start-screen__action${section.kind === 'trash' ? ' start-screen__action--active' : ''}`}
+            onClick={() => setSection({ kind: 'trash' })}
+            aria-current={section.kind === 'trash' ? 'page' : undefined}
+          >
+            <Trash2 size={14} strokeWidth={1.8} className="start-screen__action-icon" />
+            {t('startScreen.trashAction')}
+          </button>
+        </div>
       </aside>
 
       <section className="start-screen__recent" aria-label={t('startScreen.recentSection')}>
@@ -336,7 +351,9 @@ export default function StartScreen({
           <Settings size={17} strokeWidth={1.8} />
         </button>
 
-        {section.kind === 'folder' ? (
+        {section.kind === 'trash' ? (
+          <TrashPanel busy={busy} formatRelativeTime={formatRelativeTime} onRestored={onTrashRestored} />
+        ) : section.kind === 'folder' ? (
           <QuickAccessFolderPanel
             key={section.path}
             folderPath={section.path}

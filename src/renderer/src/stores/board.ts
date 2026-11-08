@@ -45,6 +45,8 @@ export type ClusterPromotionPlan = {
   nextEdges: BoardEdge[]
 }
 
+export type BoardMetaPatch = { name?: string; brief?: string; hideBackgroundDots?: boolean }
+
 type BoardState = Board & {
   path: string | null
   activeUsername: string
@@ -110,7 +112,7 @@ type BoardState = Board & {
   reconcileClusterMembershipsForCluster: (clusterId: string) => void
   fitClusterToChildren: (clusterId: string, padding?: number) => void
   commitClusterPromotion: (plan: ClusterPromotionPlan) => void
-  updateBoardMeta: (patch: { name?: string; brief?: string }) => void
+  updateBoardMeta: (patch: BoardMetaPatch) => void
   updateViewport: (viewport: BoardViewport) => void
   setActiveUsername: (username: string) => void
   setBoardPersistence: (path: string | null, transient: boolean) => void
@@ -1023,6 +1025,10 @@ export const useBoardStore = create<BoardState>((set) => ({
       const updates: Partial<BoardState> = {}
       if ('name' in patch && patch.name !== state.name) updates.name = patch.name
       if ('brief' in patch && patch.brief !== state.brief) updates.brief = patch.brief
+      if ('hideBackgroundDots' in patch) {
+        const next = patch.hideBackgroundDots ? (true as const) : undefined
+        if (next !== state.hideBackgroundDots) updates.hideBackgroundDots = next
+      }
       if (Object.keys(updates).length === 0) return state
       return { ...updates, isDirty: shouldMarkBoardDirty(state) }
     }),
@@ -1061,6 +1067,7 @@ export const useBoardStore = create<BoardState>((set) => ({
         edges: [],
         name: undefined,
         brief: undefined,
+        hideBackgroundDots: undefined,
         viewport: undefined,
         isDirty: false
       }
@@ -1087,6 +1094,7 @@ export const useBoardStore = create<BoardState>((set) => ({
         transient: board.transient === true ? true : undefined,
         name: board.name,
         brief: board.brief,
+        hideBackgroundDots: board.hideBackgroundDots === true ? true : undefined,
         nodes,
         edges: sanitizedEdges.edges,
         viewport: board.viewport,

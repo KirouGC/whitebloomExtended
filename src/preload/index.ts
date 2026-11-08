@@ -6,7 +6,8 @@ import type { InkAcetate, InkSurfaceBinding, InkStroke } from '../shared/ink'
 import type {
   ExportPickPathResult,
   QuickAccessListResult,
-  QuickAccessPickFolderResult
+  QuickAccessPickFolderResult,
+  TrashItem
 } from '../shared/quick-access'
 
 type WorkspaceConfig = {
@@ -376,7 +377,13 @@ const api = {
   pickExportImagePath: (suggestedName: string): Promise<ExportPickPathResult> =>
     ipcRenderer.invoke('export:pick-image-path', suggestedName),
   writeExportImage: (filePath: string, bytes: Uint8Array): Promise<{ ok: boolean }> =>
-    ipcRenderer.invoke('export:write-image', filePath, bytes)
+    ipcRenderer.invoke('export:write-image', filePath, bytes),
+  listTrash: (): Promise<{ ok: boolean; items: TrashItem[] }> => ipcRenderer.invoke('trash:list'),
+  restoreFromTrash: (trashPath: string): Promise<{ ok: boolean; restoredPath?: string }> =>
+    ipcRenderer.invoke('trash:restore', trashPath),
+  deleteFromTrash: (trashPath: string): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke('trash:delete', trashPath),
+  emptyTrash: (): Promise<{ ok: boolean; deleted: number }> => ipcRenderer.invoke('trash:empty')
 }
 
 if (process.contextIsolated) {

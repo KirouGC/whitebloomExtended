@@ -30,3 +30,32 @@
 .ink-overlay__canvas--glass {
   opacity: 1;
 }
+
+/* Eraser guide dot: small, with a contrasting halo so it reads on any background. */
+.ink-overlay__eraser-dot {
+  position: absolute;
+  left: -4px;
+  top: -4px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--eraser-dot-color, #111111);
+  box-shadow:
+    0 0 0 1.5px var(--eraser-dot-halo, rgba(255, 255, 255, 0.95)),
+    0 0 0 2.5px rgba(128, 128, 128, 0.35);
+  pointer-events: none;
+  opacity: 0;
+  will-change: transform;
+  z-index: 2;
+}
+
+/* Box around area-selected ink strokes; drag it to move them. */
+.ink-overlay__selection-box {
+  position: absolute;
+  border: 1.5px dashed rgba(var(--color-accent-blue-rgb), 0.8);
+  border-radius: 4px;
+  background: rgba(var(--color-accent-blue-rgb), 0.04);
+  pointer-events: auto;
+  cursor: move;
+  z-index: 3;
+}

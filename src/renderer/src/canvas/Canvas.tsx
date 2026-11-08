@@ -14,6 +14,9 @@ import {
   reconnectEdge,
   Panel,
   useReactFlow,
+  useStore as useFlowStore,
+  SelectionMode,
+  type SelectionRect,
   MiniMap,
   MarkerType as RFMarkerType
 } from '@xyflow/react'
@@ -21,6 +24,7 @@ import '@xyflow/react/dist/style.css'
 import { useTranslation } from 'react-i18next'
 import { useBoardStore } from '@renderer/stores/board'
 import { useHistoryStore } from '../history/store'
+import { flushBoardHistory, installBoardHistory, resetBoardHistory } from '../history/boardHistory'
 import { useAppSettingsStore } from '@renderer/stores/app-settings'
 import { useWorkspaceStore } from '@renderer/stores/workspace'
 import { TextNode } from './TextNode'
@@ -129,7 +133,7 @@ import type { ShapePreset } from '@renderer/shared/types'
 import { getShapePresetDefinition } from './shapePresets'
 import { resolveCanvasMarkerColor } from './vectorStyles'
 import type { Tool } from './tools'
-import { createInkTargetId, type InkBoardSurfaceBinding } from '../../../shared/ink'
+import { createInkTargetId, type InkBoardSurfaceBinding, type InkBoardWorldSample, type InkSurfaceBinding } from '../../../shared/ink'
 import { planClusterPromotion } from '@renderer/stores/board'
 import type { BoardNodeDraft } from '@renderer/stores/board'
 import { alignNodes, normalizeBounds } from './layoutGeometry'
@@ -773,6 +777,7 @@ function buildBoardSnapshotFromGraph(input: {
   version: number
   name?: string
   brief?: string
+  hideBackgroundDots?: true
   nodes: BoardNode[]
   edges: BoardEdge[]
   viewport?: BoardViewport
@@ -783,10 +788,17 @@ function buildBoardSnapshotFromGraph(input: {
     ...(input.transient ? { transient: true as const } : {}),
     ...(input.name?.trim() ? { name: input.name.trim() } : {}),
     ...(input.brief?.trim() ? { brief: input.brief.trim() } : {}),
+    ...(input.hideBackgroundDots ? { hideBackgroundDots: true as const } : {}),
     nodes: normalizeBoardNodesForSave(input.nodes),
     edges: input.edges,
     ...(input.viewport ? { viewport: input.viewport } : {})
   }
+}
+
+const EMPTY_STROKE_SELECTION: ReadonlySet<string> = new Set()
+
+function sortStrokes(strokes: BoardInkStroke[]): BoardInkStroke[] {
+  return strokes.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
 }
 
 function blurToolbarButtonIfFocused(): void {
@@ -825,6 +837,8 @@ export function Canvas({
   const boardTransient = useBoardStore((s) => s.transient === true)
   const boardName = useBoardStore((s) => s.name)
   const boardBrief = useBoardStore((s) => s.brief)
+  const boardHideDots = useBoardStore((s) => s.hideBackgroundDots)
+  const globalBackgroundDots = useAppSettingsStore((s) => s.appearance.backgroundDots)
   const boardViewport = useBoardStore((s) => s.viewport)
   const isDirty = useBoardStore((s) => s.isDirty)
   const updateNodePosition = useBoardStore((s) => s.updateNodePosition)
@@ -882,7 +896,13 @@ export function Canvas({
     [currentBoardReferencedMaterialSignature]
   )
 
-  const { screenToFlowPosition, getNodes, getNodesBounds, getViewport: getFlowViewport } = useReactFlow()
+  const {
+    screenToFlowPosition,
+    getNodes,
+    getNodesBounds,
+    getViewport: getFlowViewport,
+    setViewport: setFlowViewport
+  } = useReactFlow()
   const resolvedTheme = useResolvedTheme()
 
   const canvasDropTargetRef = useRef<HTMLDivElement>(null)
@@ -903,7 +923,29 @@ export function Canvas({
     setAcetateVisible(stored === null ? true : stored === 'true')
   }, [boardPath])
   const [boardInkStrokes, setBoardInkStrokes] = useState<BoardInkStroke[]>([])
+  const boardInkStrokesRef = useRef<BoardInkStroke[]>(boardInkStrokes)
+  boardInkStrokesRef.current = boardInkStrokes
+  // Ink writes are coalesced: the screen updates immediately and only the latest
+  // full layer is written to disk (one write even after many rapid undos).
+  const inkWriterRef = useRef<{
+    inFlight: boolean
+    pending: { root: string; binding: InkBoardSurfaceBinding; strokes: BoardInkStroke[] } | null
+  }>({ inFlight: false, pending: null })
+  // Ink strokes picked by the area selection (pointer tool), plus a live drag offset.
+  const [selectedStrokeIds, setSelectedStrokeIds] = useState<ReadonlySet<string>>(EMPTY_STROKE_SELECTION)
+  const [selectedStrokeOffset, setSelectedStrokeOffset] = useState<{ dx: number; dy: number } | null>(null)
+  const selectedStrokeIdsRef = useRef<ReadonlySet<string>>(selectedStrokeIds)
+  selectedStrokeIdsRef.current = selectedStrokeIds
+  const strokeDragAnchorRef = useRef<{ id: string; x: number; y: number } | null>(null)
+  // Start positions of the selected nodes while the ink selection box is dragged.
+  const boxDragNodeStartRef = useRef<Map<string, { x: number; y: number }> | null>(null)
+  const nodesRef = useRef<RFNode[]>([])
+  const userSelectionRect = useFlowStore((state) => state.userSelectionRect)
+  const lastSelectionRectRef = useRef<SelectionRect | null>(null)
   const [activeInkTool, setActiveInkTool] = useState<InkTool>('pen')
+  // Latest tool state for keyboard handlers (pressing P/E again swaps pen <-> eraser).
+  const inkToolStateRef = useRef({ activeTool: activeTool as Tool, activeInkTool })
+  inkToolStateRef.current = { activeTool, activeInkTool }
   const [screenRecordingState, setScreenRecordingState] = useState<ScreenRecordingState>({
     status: 'idle',
     fileName: null,
@@ -1697,6 +1739,7 @@ export function Canvas({
 
   // Local state so RF can update positions during drag
   const [nodes, setNodes] = useState<RFNode[]>(schemaNodes)
+  nodesRef.current = nodes
   useEffect(() => {
     setNodes((prev) => {
       const selectedIds = new Set(prev.filter((n) => n.selected).map((n) => n.id))
@@ -2400,20 +2443,29 @@ export function Canvas({
         appendInkStroke:
           workspaceRoot !== null && boardInkBinding !== null
             ? async (binding, stroke) => {
-                setBoardInkStrokes((existing) => {
-                  const next = [...existing, stroke as BoardInkStroke]
-                  next.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-                  return next
-                })
-                await window.api.appendInkStroke(workspaceRoot, binding, stroke)
+                const current = boardInkStrokesRef.current
+                if (!current.some((s) => s.id === stroke.id)) {
+                  applyInkStrokes(binding, sortStrokes([...current, stroke as BoardInkStroke]))
+                }
                 return { strokeId: stroke.id }
+              }
+            : undefined,
+        addInkStrokes:
+          workspaceRoot !== null && boardInkBinding !== null
+            ? async (binding, strokes) => {
+                const current = boardInkStrokesRef.current
+                const existingIds = new Set(current.map((s) => s.id))
+                const added = (strokes as BoardInkStroke[]).filter((s) => !existingIds.has(s.id))
+                if (added.length > 0) applyInkStrokes(binding, sortStrokes([...current, ...added]))
               }
             : undefined,
         removeInkStroke:
           workspaceRoot !== null && boardInkBinding !== null
             ? async (binding, strokeId) => {
-                setBoardInkStrokes((existing) => existing.filter((s) => s.id !== strokeId))
-                await window.api.deleteInkStroke(workspaceRoot, binding, strokeId)
+                applyInkStrokes(
+                  binding,
+                  boardInkStrokesRef.current.filter((s) => s.id !== strokeId)
+                )
               }
             : undefined,
         clearInkLayer:
@@ -2427,20 +2479,18 @@ export function Canvas({
         restoreInkStrokes:
           workspaceRoot !== null && boardInkBinding !== null
             ? async (binding, strokes) => {
-                await window.api.setInkStrokes(workspaceRoot, binding, strokes)
-                const next = [...(strokes as BoardInkStroke[])]
-                next.sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-                setBoardInkStrokes(next)
+                applyInkStrokes(binding, sortStrokes([...(strokes as BoardInkStroke[])]))
               }
             : undefined,
         eraseInkStrokes:
           workspaceRoot !== null && boardInkBinding !== null
             ? async (binding, strokes) => {
+                // One update + one write for the whole set (was one disk round-trip per stroke).
                 const ids = new Set(strokes.map((s) => s.id))
-                setBoardInkStrokes((existing) => existing.filter((s) => !ids.has(s.id)))
-                for (const stroke of strokes) {
-                  await window.api.deleteInkStroke(workspaceRoot, binding, stroke.id)
-                }
+                applyInkStrokes(
+                  binding,
+                  boardInkStrokesRef.current.filter((s) => !ids.has(s.id))
+                )
               }
             : undefined
       }
@@ -3190,18 +3240,21 @@ export function Canvas({
         transient: options?.transient,
         name: boardName,
         brief: boardBrief,
+        hideBackgroundDots: boardHideDots,
         nodes: boardNodes,
         edges: boardEdges,
         viewport: boardViewport
       })
     },
-    [version, boardName, boardBrief, boardNodes, boardEdges, boardViewport]
+    [version, boardName, boardBrief, boardHideDots, boardNodes, boardEdges, boardViewport]
   )
 
   // Clear undo/redo history whenever the active board changes so operations
   // from a previous session cannot bleed into a new one.
   useEffect(() => {
+    installBoardHistory()
     useHistoryStore.getState().clear('canvas-mode')
+    resetBoardHistory()
   }, [boardPath])
 
   useEffect(() => {
@@ -3477,6 +3530,7 @@ export function Canvas({
         setActiveTool('pointer')
         blurToolbarButtonIfFocused()
         setNodes((nds) => nds.map((n) => ({ ...n, selected: false })))
+        clearStrokeSelection()
         return
       }
 
@@ -3517,6 +3571,26 @@ export function Canvas({
         return
       }
 
+      // Tool shortcuts (Paint / Whiteboard style): V select, H hand, S shapes.
+      if (!event.ctrlKey && !event.metaKey && !event.altKey && !event.shiftKey) {
+        const toolKey = event.key.toLowerCase()
+        if (toolKey === 'v' || toolKey === 'h') {
+          if (isEditableTarget(event.target)) return
+          event.preventDefault()
+          setActiveTool(toolKey === 'v' ? 'pointer' : 'hand')
+          blurToolbarButtonIfFocused()
+          return
+        }
+        if (toolKey === 's') {
+          if (isEditableTarget(event.target)) return
+          event.preventDefault()
+          const shapesButton = document.querySelector<HTMLElement>('[data-tool-button="shapes"]')
+          const rect = shapesButton?.getBoundingClientRect()
+          if (rect) setShapeMenuAnchor({ x: rect.left, y: rect.top })
+          return
+        }
+      }
+
       if (
         (event.key.toLowerCase() === 'p' || event.key.toLowerCase() === 'b') &&
         !event.ctrlKey &&
@@ -3526,8 +3600,11 @@ export function Canvas({
       ) {
         if (isEditableTarget(event.target)) return
         event.preventDefault()
+        // Pressing the pen key while the pen is already active swaps to the eraser.
+        const pressedAgain =
+          inkToolStateRef.current.activeTool === 'ink' && inkToolStateRef.current.activeInkTool === 'pen'
         setActiveTool('ink')
-        setActiveInkTool('pen')
+        setActiveInkTool(pressedAgain ? 'eraser' : 'pen')
         setAcetateVisible((current) => {
           if (current) return current
           if (boardPath) localStorage.setItem(`wb:acetate:${boardPath}`, 'true')
@@ -3546,8 +3623,11 @@ export function Canvas({
       ) {
         if (isEditableTarget(event.target)) return
         event.preventDefault()
+        // Pressing the eraser key while the eraser is already active swaps back to the pen.
+        const pressedAgain =
+          inkToolStateRef.current.activeTool === 'ink' && inkToolStateRef.current.activeInkTool === 'eraser'
         setActiveTool('ink')
-        setActiveInkTool('eraser')
+        setActiveInkTool(pressedAgain ? 'pen' : 'eraser')
         setAcetateVisible((current) => {
           if (current) return current
           if (boardPath) localStorage.setItem(`wb:acetate:${boardPath}`, 'true')
@@ -3620,7 +3700,12 @@ export function Canvas({
         return
       }
 
-      if (event.key.toLowerCase() === 'z' && (event.ctrlKey || event.metaKey) && event.shiftKey) {
+      // Ctrl+Y (Windows convention) and Ctrl+Shift+Z both redo.
+      if (
+        ((event.key.toLowerCase() === 'z' && event.shiftKey) || (event.key.toLowerCase() === 'y' && !event.shiftKey)) &&
+        (event.ctrlKey || event.metaKey) &&
+        !event.altKey
+      ) {
         if (isEditableTarget(event.target)) return
         event.preventDefault()
         void runCanvasCommand(WHITEBLOOM_COMMAND_IDS.canvas.historyRedo, undefined, {
@@ -3638,6 +3723,19 @@ export function Canvas({
       const isDeleteKey = event.key === 'Delete' || event.key === 'Backspace'
       if (!isDeleteKey) return
       if (isEditableTarget(event.target)) return
+
+      const strokeIds = selectedStrokeIdsRef.current
+      if (strokeIds.size > 0 && boardInkBinding) {
+        const erasedStrokes = boardInkStrokesRef.current.filter((stroke) => strokeIds.has(stroke.id))
+        clearStrokeSelection()
+        if (erasedStrokes.length > 0) {
+          event.preventDefault()
+          void runCanvasCommand(WHITEBLOOM_COMMAND_IDS.canvas.inkEraseStrokes, {
+            binding: boardInkBinding,
+            erasedStrokes
+          })
+        }
+      }
 
       const hasSelection =
         nodes.some((node) => node.selected) || edges.some((edge) => edge.selected)
@@ -3763,6 +3861,195 @@ export function Canvas({
   const handleCancelDocumentAction = useCallback(() => {
     setPendingDocumentAction(null)
   }, [])
+
+  // ── Ink layer: instant updates, coalesced background writes ───────────────
+  const flushInkWrites = useCallback(async () => {
+    const writer = inkWriterRef.current
+    if (writer.inFlight) return
+    writer.inFlight = true
+    try {
+      while (writer.pending) {
+        const job = writer.pending
+        writer.pending = null
+        try {
+          await window.api.setInkStrokes(job.root, job.binding, job.strokes)
+        } catch (error) {
+          console.error('[ink] failed to save ink layer', error)
+        }
+      }
+    } finally {
+      writer.inFlight = false
+    }
+  }, [])
+
+  /** Show `next` immediately, then persist it (only the latest version is written). */
+  const applyInkStrokes = useCallback(
+    (binding: InkSurfaceBinding, next: BoardInkStroke[]) => {
+      boardInkStrokesRef.current = next
+      setBoardInkStrokes(next)
+      if (!workspaceRoot) return
+      inkWriterRef.current.pending = {
+        root: workspaceRoot,
+        binding: binding as InkBoardSurfaceBinding,
+        strokes: next
+      }
+      void flushInkWrites()
+    },
+    [flushInkWrites, workspaceRoot]
+  )
+
+  // ── Ink in the area selection ─────────────────────────────────────────────
+  const clearStrokeSelection = useCallback(() => {
+    setSelectedStrokeIds((current) => (current.size === 0 ? current : EMPTY_STROKE_SELECTION))
+    setSelectedStrokeOffset(null)
+  }, [])
+
+  // When a selection rectangle finishes, also pick every ink stroke it touches.
+  useEffect(() => {
+    if (userSelectionRect) {
+      if (!lastSelectionRectRef.current) clearStrokeSelection()
+      lastSelectionRectRef.current = userSelectionRect
+      return
+    }
+    const rect = lastSelectionRectRef.current
+    lastSelectionRectRef.current = null
+    if (!rect || (rect.width < 2 && rect.height < 2) || !acetateVisible) return
+    const vp = getFlowViewport()
+    const minX = (rect.x - vp.x) / vp.zoom
+    const minY = (rect.y - vp.y) / vp.zoom
+    const maxX = minX + rect.width / vp.zoom
+    const maxY = minY + rect.height / vp.zoom
+    const picked = boardInkStrokesRef.current
+      .filter((stroke) =>
+        (stroke.samples as InkBoardWorldSample[]).some((p) => p.x >= minX && p.x <= maxX && p.y >= minY && p.y <= maxY)
+      )
+      .map((stroke) => stroke.id)
+    setSelectedStrokeIds(picked.length > 0 ? new Set(picked) : EMPTY_STROKE_SELECTION)
+  }, [acetateVisible, clearStrokeSelection, getFlowViewport, userSelectionRect])
+
+  useEffect(() => {
+    if (activeTool !== 'pointer') clearStrokeSelection()
+  }, [activeTool, clearStrokeSelection])
+
+  /** Moves the selected strokes by (dx, dy) world units as one undoable step. */
+  const commitSelectedStrokesMove = useCallback(
+    async (dx: number, dy: number) => {
+      const ids = selectedStrokeIdsRef.current
+      if (ids.size === 0 || !boardInkBinding || (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01)) {
+        setSelectedStrokeOffset(null)
+        return
+      }
+      const before = boardInkStrokesRef.current
+      const after = before.map((stroke) =>
+        ids.has(stroke.id)
+          ? { ...stroke, samples: (stroke.samples as InkBoardWorldSample[]).map((p) => ({ ...p, x: p.x + dx, y: p.y + dy })) }
+          : stroke
+      )
+      setBoardInkStrokes(after)
+      setSelectedStrokeOffset(null)
+      await runCanvasCommand(WHITEBLOOM_COMMAND_IDS.canvas.inkReplaceStrokes, {
+        binding: boardInkBinding,
+        before,
+        after
+      })
+    },
+    [boardInkBinding, runCanvasCommand]
+  )
+
+  /**
+   * Dragging the ink selection box moves EVERYTHING in the selection: strokes and
+   * the selected nodes (images, text, shapes…), as one undoable step.
+   */
+  const handleSelectedStrokesDrag = useCallback(
+    (dx: number, dy: number, done: boolean) => {
+      if (!boxDragNodeStartRef.current) {
+        const starts = new Map<string, { x: number; y: number }>()
+        for (const node of nodesRef.current) {
+          if (node.selected) starts.set(node.id, { x: node.position.x, y: node.position.y })
+        }
+        boxDragNodeStartRef.current = starts
+      }
+      const starts = boxDragNodeStartRef.current
+
+      if (!done) {
+        setSelectedStrokeOffset({ dx, dy })
+        if (starts.size > 0) {
+          setNodes((nds) =>
+            nds.map((n) => {
+              const start = starts.get(n.id)
+              return start ? { ...n, position: { x: start.x + dx, y: start.y + dy } } : n
+            })
+          )
+        }
+        return
+      }
+
+      boxDragNodeStartRef.current = null
+      const history = useHistoryStore.getState()
+      const undoLengthBefore = history.undoLength('canvas-mode')
+      if (starts.size > 0 && (dx !== 0 || dy !== 0)) {
+        updateNodePositions(
+          [...starts].map(([nodeId, start]) => ({ id: nodeId, position: { x: start.x + dx, y: start.y + dy } }))
+        )
+        flushBoardHistory()
+      }
+      void commitSelectedStrokesMove(dx, dy).then(() => {
+        useHistoryStore.getState().mergeSince('canvas-mode', undoLengthBefore)
+      })
+    },
+    [commitSelectedStrokesMove, updateNodePositions]
+  )
+
+  // Dragging selected nodes carries the selected strokes along.
+  const onNodeDragStart = useCallback((_event: React.MouseEvent, node: RFNode) => {
+    strokeDragAnchorRef.current =
+      selectedStrokeIdsRef.current.size > 0 ? { id: node.id, x: node.position.x, y: node.position.y } : null
+  }, [])
+  const onNodeDrag = useCallback((_event: React.MouseEvent, node: RFNode) => {
+    const anchor = strokeDragAnchorRef.current
+    if (!anchor || anchor.id !== node.id) return
+    setSelectedStrokeOffset({ dx: node.position.x - anchor.x, dy: node.position.y - anchor.y })
+  }, [])
+  const onNodeDragStop = useCallback(
+    (_event: React.MouseEvent, node: RFNode) => {
+      const anchor = strokeDragAnchorRef.current
+      strokeDragAnchorRef.current = null
+      if (!anchor || anchor.id !== node.id) return
+      const dx = node.position.x - anchor.x
+      const dy = node.position.y - anchor.y
+      // Let the node move land in the store first, then record nodes + ink as one step.
+      window.requestAnimationFrame(() => {
+        const undoLengthBefore = useHistoryStore.getState().undoLength('canvas-mode')
+        flushBoardHistory()
+        void commitSelectedStrokesMove(dx, dy).then(() => {
+          useHistoryStore.getState().mergeSince('canvas-mode', undoLengthBefore)
+        })
+      })
+    },
+    [commitSelectedStrokesMove]
+  )
+  const onSelectionDragStart = useCallback(
+    (event: React.MouseEvent, selection: RFNode[]) => {
+      if (selection[0]) onNodeDragStart(event, selection[0])
+    },
+    [onNodeDragStart]
+  )
+  const onSelectionDrag = useCallback(
+    (event: React.MouseEvent, selection: RFNode[]) => {
+      const anchor = strokeDragAnchorRef.current
+      const node = anchor ? selection.find((n) => n.id === anchor.id) : undefined
+      if (node) onNodeDrag(event, node)
+    },
+    [onNodeDrag]
+  )
+  const onSelectionDragStop = useCallback(
+    (event: React.MouseEvent, selection: RFNode[]) => {
+      const anchor = strokeDragAnchorRef.current
+      const node = anchor ? selection.find((n) => n.id === anchor.id) : undefined
+      if (node) onNodeDragStop(event, node)
+    },
+    [onNodeDragStop]
+  )
 
   // ── Image export ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -4807,8 +5094,15 @@ export function Canvas({
     [activeTool, runCanvasCommand, screenToFlowPosition, workspaceRoot, t]
   )
 
+  // While the viewport moves, flag the board so costly effects (cluster backdrop
+  // blur) are paused; toggled on the DOM directly to avoid re-rendering the canvas.
+  const onMoveStart = useCallback(() => {
+    document.querySelector('[data-board-capture="root"]')?.classList.add('wb-moving')
+  }, [])
+
   const onMoveEnd = useCallback(
     (_: unknown, vp: Viewport) => {
+      document.querySelector('[data-board-capture="root"]')?.classList.remove('wb-moving')
       updateViewport({ x: vp.x, y: vp.y, zoom: vp.zoom })
     },
     [updateViewport]
@@ -4855,7 +5149,17 @@ export function Canvas({
                 onReconnectStart={onReconnectStart}
                 onReconnectEnd={onReconnectEnd}
                 isValidConnection={isValidEdgeHandlePair}
-                onPaneClick={onPaneClick}
+                onPaneClick={(event) => {
+                  clearStrokeSelection()
+                  onPaneClick(event)
+                }}
+                onNodeDragStart={onNodeDragStart}
+                onNodeDrag={onNodeDrag}
+                onNodeDragStop={onNodeDragStop}
+                onSelectionDragStart={onSelectionDragStart}
+                onSelectionDrag={onSelectionDrag}
+                onSelectionDragStop={onSelectionDragStop}
+                selectionMode={SelectionMode.Partial}
                 onNodeClick={onNodeClick}
                 onDragOver={onDragOver}
                 onDrop={onDrop}
@@ -4863,6 +5167,7 @@ export function Canvas({
                 onMouseMove={onMouseMove}
                 onMouseUp={onMouseUp}
                 onPaneContextMenu={onPaneContextMenu}
+                onMoveStart={onMoveStart}
                 onMoveEnd={onMoveEnd}
                 className={`canvas--tool-${activeTool}${singleSelectedNodeId !== null ? ' canvas--single-select' : ''}`}
                 elementsSelectable={activeTool === 'pointer'}
@@ -4888,12 +5193,15 @@ export function Canvas({
                   setNodes={setNodes}
                   isReconnecting={isReconnecting}
                 />
-                <Background gap={25} size={1} color="var(--color-secondary-fg)" />
+                {boardHideDots || !globalBackgroundDots ? null : <Background gap={25} size={1} color="var(--color-secondary-fg)" />}
                 <SmartGuidesOverlay guides={canvasSnapping.guides} />
                 <InkOverlay
                   active={activeTool === 'ink'}
                   activeTool={activeInkTool}
                   penStyle={inkPenStyle}
+                  selectedStrokeIds={selectedStrokeIds}
+                  selectedStrokeOffset={selectedStrokeOffset}
+                  onSelectedStrokesDrag={handleSelectedStrokesDrag}
                   acetateVisible={acetateVisible}
                   acetateStrokes={boardInkStrokes}
                   onTransfer={(stroke) => {
@@ -4990,6 +5298,7 @@ export function Canvas({
           <SettingsModal
             name={boardName}
             brief={boardBrief}
+            hideBackgroundDots={boardHideDots === true}
             onChange={updateBoardMeta}
             onClose={() => setSettingsOpen(false)}
           />
@@ -5129,7 +5438,22 @@ export function Canvas({
         {exportZoneOpen ? (
           <ExportZoneOverlay
             busy={exportBusy}
-            zoom={getFlowViewport().zoom}
+            getZoom={() => getFlowViewport().zoom}
+            onPanBy={(dx, dy) => {
+              const vp = getFlowViewport()
+              void setFlowViewport({ x: vp.x + dx, y: vp.y + dy, zoom: vp.zoom })
+            }}
+            onZoomAt={(factor, clientX, clientY) => {
+              const vp = getFlowViewport()
+              const zoom = Math.min(BOARD_MAX_ZOOM, Math.max(BOARD_MIN_ZOOM, vp.zoom * factor))
+              const pane = document.querySelector<HTMLElement>('[data-board-capture="root"]')
+              const bounds = pane?.getBoundingClientRect()
+              const px = clientX - (bounds?.left ?? 0)
+              const py = clientY - (bounds?.top ?? 0)
+              const worldX = (px - vp.x) / vp.zoom
+              const worldY = (py - vp.y) / vp.zoom
+              void setFlowViewport({ x: px - worldX * zoom, y: py - worldY * zoom, zoom })
+            }}
             onExport={(rect) => void handleExportZone(rect)}
             onCancel={() => setExportZoneOpen(false)}
           />

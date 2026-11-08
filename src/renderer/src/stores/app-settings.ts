@@ -27,6 +27,7 @@ type AppSettingsState = AppSettings & {
   updateCommandAlias: (commandId: string, alias: string) => Promise<void>
   updateTheme: (theme: ThemePreference) => Promise<void>
   updateCrosshairColor: (color: string | null) => Promise<void>
+  updateBackgroundDots: (show: boolean) => Promise<void>
   updatePenStyle: (style: Partial<AppSettings['ink']>) => Promise<void>
   addQuickAccessFolder: (folderPath: string) => Promise<void>
   removeQuickAccessFolder: (folderPath: string) => Promise<void>
@@ -161,12 +162,19 @@ export const useAppSettingsStore = create<AppSettingsState>((set, get) => ({
     scheduleSave(get)
   },
 
+  updateBackgroundDots: async (show) => {
+    set({ appearance: { ...get().appearance, backgroundDots: show } })
+    scheduleSave(get)
+  },
+
   updatePenStyle: async (style) => {
     const current = get().ink
     set({
       ink: {
         penColor: style.penColor !== undefined ? (normalizeHexColor(style.penColor) ?? current.penColor) : current.penColor,
-        penWidth: style.penWidth !== undefined ? normalizePenWidth(style.penWidth) : current.penWidth
+        penWidth: style.penWidth !== undefined ? normalizePenWidth(style.penWidth) : current.penWidth,
+        pressureSensitive:
+          style.pressureSensitive !== undefined ? style.pressureSensitive === true : current.pressureSensitive
       }
     })
     scheduleSave(get)

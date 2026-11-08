@@ -5,7 +5,8 @@ import type { InkAcetate, InkSurfaceBinding, InkStroke } from '../shared/ink'
 import type {
   ExportPickPathResult,
   QuickAccessListResult,
-  QuickAccessPickFolderResult
+  QuickAccessPickFolderResult,
+  TrashItem
 } from '../shared/quick-access'
 
 type WorkspaceConfig = {
@@ -333,6 +334,10 @@ declare global {
       listQuickAccessWorkspaces: (folderPath: string) => Promise<QuickAccessListResult>
       pickExportImagePath: (suggestedName: string) => Promise<ExportPickPathResult>
       writeExportImage: (filePath: string, bytes: Uint8Array) => Promise<{ ok: boolean }>
+      listTrash: () => Promise<{ ok: boolean; items: TrashItem[] }>
+      restoreFromTrash: (trashPath: string) => Promise<{ ok: boolean; restoredPath?: string }>
+      deleteFromTrash: (trashPath: string) => Promise<{ ok: boolean }>
+      emptyTrash: () => Promise<{ ok: boolean; deleted: number }>
     }
   }
 }

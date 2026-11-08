@@ -107,6 +107,7 @@ function App(): React.JSX.Element {
   const boardPath = useBoardStore((s) => s.path)
   const boardName = useBoardStore((s) => s.name)
   const boardBrief = useBoardStore((s) => s.brief)
+  const boardHideDots = useBoardStore((s) => s.hideBackgroundDots)
   const boardTransient = useBoardStore((s) => s.transient === true)
   const boardNodes = useBoardStore((s) => s.nodes)
   const boardEdges = useBoardStore((s) => s.edges)
@@ -133,6 +134,8 @@ function App(): React.JSX.Element {
   const [quickAccessPromptFolder, setQuickAccessPromptFolder] = useState<string | null>(null)
   const [transientBoards, setTransientBoards] = useState<string[]>([])
   const [recentBoards, setRecentBoards] = useState<RecentBoardItem[]>([])
+  // Bumped to re-read the start-screen lists (e.g. after restoring from the trash).
+  const [startListsVersion, setStartListsVersion] = useState(0)
   const [boardThumbnails, setBoardThumbnails] = useState<Record<string, string>>({})
   const [isCreateBoardModalOpen, setIsCreateBoardModalOpen] = useState(false)
   const [newBoardName, setNewBoardName] = useState('Board')
@@ -178,12 +181,13 @@ function App(): React.JSX.Element {
         ...(options?.transient ? { transient: true as const } : {}),
         ...(boardName?.trim() ? { name: boardName.trim() } : {}),
         ...(boardBrief?.trim() ? { brief: boardBrief.trim() } : {}),
+        ...(boardHideDots ? { hideBackgroundDots: true as const } : {}),
         nodes,
         edges: boardEdges,
         ...(boardViewport ? { viewport: boardViewport } : {})
       }
     },
-    [boardBrief, boardEdges, boardName, boardNodes, boardVersion, boardViewport]
+    [boardBrief, boardEdges, boardHideDots, boardName, boardNodes, boardVersion, boardViewport]
   )
 
   const saveCurrentBoard = useCallback(async (): Promise<boolean> => {
@@ -263,7 +267,7 @@ function App(): React.JSX.Element {
     return () => {
       cancelled = true
     }
-  }, [view])
+  }, [view, startListsVersion])
 
   useEffect(() => {
     if (view !== 'start') return
@@ -280,7 +284,7 @@ function App(): React.JSX.Element {
     return () => {
       cancelled = true
     }
-  }, [view])
+  }, [view, startListsVersion])
 
   useEffect(() => {
     if (view !== 'workspace-home' || !workspaceRoot || workspaceBoards.length === 0) {
@@ -852,6 +856,7 @@ function App(): React.JSX.Element {
         onTrashBoard={(nextBoardPath) => void handleRequestTrashBoard(nextBoardPath)}
         onOpenWorkspaceRoot={(nextWorkspaceRoot) => void handleOpenWorkspaceFromFinder(nextWorkspaceRoot)}
         onOpenSettings={() => setStartSettingsOpen(true)}
+        onTrashRestored={() => setStartListsVersion((v) => v + 1)}
       />
       {startSettingsOpen ? <SettingsModal onClose={() => setStartSettingsOpen(false)} /> : null}
       {projectFinderMode ? (

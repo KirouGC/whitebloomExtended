@@ -48,8 +48,8 @@ export function PdfInkOverlay({
   const [scrollbarInsets, setScrollbarInsets] = useState({ right: 0, bottom: 0 })
 
   const currentOutline = useMemo(
-    () => (currentSamples.length > 1 ? buildOutlineFromScreenSamples(currentSamples, penStyle.width) : []),
-    [currentSamples, penStyle.width]
+    () => (currentSamples.length > 1 ? buildOutlineFromScreenSamples(currentSamples, penStyle.width, penStyle.pressure) : []),
+    [currentSamples, penStyle.width, penStyle.pressure]
   )
 
   useEffect(() => { strokesRef.current = strokes }, [strokes])
@@ -268,7 +268,7 @@ export function PdfInkOverlay({
               color: penStyleRef.current.color,
               width: penStyleRef.current.width
             },
-            dynamics: { ...DEFAULT_INK_STROKE_DYNAMICS },
+            dynamics: { ...DEFAULT_INK_STROKE_DYNAMICS, pressure: penStyleRef.current.pressure },
             samples: pagedSamples,
             createdAt: new Date().toISOString()
           })

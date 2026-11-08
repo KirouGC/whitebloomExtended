@@ -21,7 +21,23 @@
     "quickAccessMissing": "This folder no longer exists or is not available.",
     "quickAccessBoardCount_one": "{{count}} board",
     "quickAccessBoardCount_other": "{{count}} boards",
-    "settingsLabel": "Settings"
+    "settingsLabel": "Settings",
+    "trashAction": "Trash",
+    "trashSection": "Trash",
+    "trashHint": "Boards you delete land here. Restore them to their folder, or delete them forever.",
+    "trashEmpty": "Empty trash",
+    "trashEmptyState": "The trash is empty.",
+    "trashRestore": "Restore",
+    "trashRestoredTo": "Restored to {{path}}",
+    "trashRestoreFailed": "The board could not be restored.",
+    "trashDeleteForever": "Delete forever",
+    "trashUnknownOrigin": "Original folder unknown",
+    "trashEmptyConfirmTitle": "Empty the trash?",
+    "trashEmptyConfirmBody_one": "{{count}} board will be deleted permanently. This cannot be undone.",
+    "trashEmptyConfirmBody_other": "{{count}} boards will be deleted permanently. This cannot be undone.",
+    "trashDeleteConfirmTitle": "Delete forever?",
+    "trashDeleteConfirmBody": "\"{{name}}\" will be deleted permanently. This cannot be undone.",
+    "trashCancel": "Cancel"
   },
   "workspaceHome": {
     "workspaceLabel": "Workspace",
@@ -55,7 +71,7 @@
   },
   "confirmTrashModal": {
     "title": "Move board to trash?",
-    "description": "The board file will be moved into wbapp:trash. You can still restore it manually from the filesystem during development.",
+    "description": "The board moves to the Trash on the start screen, where you can restore it later.",
     "cancelButton": "Cancel",
     "movingButton": "Moving…",
     "moveButton": "Move to trash"
@@ -73,7 +89,7 @@
     "cancelButton": "Cancel",
     "closeButton": "Close",
     "moveToTrashTitle": "Move board to trash?",
-    "moveToTrashBody": "This moves the board file into wbapp:trash. Any unsaved in-memory edits will be lost.",
+    "moveToTrashBody": "The board moves to the Trash on the start screen, where you can restore it later. Unsaved changes will be lost.",
     "moveToTrashButton": "Move to trash",
     "webResourceDropError": "Can't embed web resources — save the image to your local drive first, then drop it.",
     "dropError": "Unable to drop file.",
@@ -81,7 +97,7 @@
     "importRequiresWorkspace": "Available only on workspace boards.",
     "promoteSubboardError": "Unable to promote this cluster into a subboard.",
     "promoteError": "Unable to promote this quickboard into a workspace.",
-    "trashError": "Unable to move this board into wbapp:trash.",
+    "trashError": "Unable to move this board to the Trash.",
     "boardSettingsMenuItem": "Settings",
     "promoteToWorkspaceMenuItem": "Promote to Workspace",
     "moveToTrashMenuItem": "Move to Trash",
@@ -133,7 +149,9 @@
     "namePlaceholder": "Untitled",
     "briefLabel": "Brief",
     "briefHint": "A message for AI agents — describe what this board is for, what context they should keep in mind, or how you'd like them to help.",
-    "briefPlaceholder": "This board is for…"
+    "briefPlaceholder": "This board is for…",
+    "backgroundDotsLabel": "Show background dots",
+    "backgroundDotsHint": "The dotted grid behind the board. Saved with this board."
   },
   "workspaceSettings": {
     "title": "Workspace",
@@ -177,7 +195,9 @@
     "crosshairCustom": "Custom color",
     "crosshairPreview": "Hover here to preview",
     "quickAccessNeverAskLabel": "Never offer to add new workspace folders to Quick Access",
-    "quickAccessNeverAskHint": "When off, creating a workspace in a folder that is not in Quick Access asks whether to add it."
+    "quickAccessNeverAskHint": "When off, creating a workspace in a folder that is not in Quick Access asks whether to add it.",
+    "backgroundDotsLabel": "Show background dots on all boards",
+    "backgroundDotsHint": "Turn off to hide the dotted grid everywhere. Each board can also hide it in its own settings."
   },
   "petalPalette": {
     "ariaLabel": "Command palette",
@@ -211,14 +231,15 @@
     "typewriterMode": "typewriter"
   },
   "canvasToolbar": {
-    "pointerLabel": "Pointer",
+    "pointerLabel": "Select",
     "handLabel": "Hand",
-    "addTextLabel": "Add text",
-    "inkLabel": "Ink",
-    "acetateLabel": "Toggle acetate layer",
+    "addTextLabel": "Text",
+    "inkLabel": "Pen",
+    "acetateLabel": "Show/hide ink layer",
     "alertsLabel": "TODO - alerts",
     "commentsLabel": "TODO - comments",
-    "shapesLabel": "TODO - shapes"
+    "shapesLabel": "Shapes",
+    "shapesTip": "Shapes"
   },
   "schemaBloomToolbar": {
     "addTableLabel": "Add table",
@@ -313,7 +334,8 @@
     "penStyleLabel": "Pen color and thickness",
     "colorLabel": "Color",
     "customColorLabel": "Custom color",
-    "thicknessLabel": "Thickness"
+    "thicknessLabel": "Thickness",
+    "pressureLabel": "Pressure sensitivity"
   },
   "quickAccessPrompt": {
     "title": "Add folder to Quick Access?",
@@ -327,7 +349,7 @@
     "exportAllHint": "Crops to everything on the board",
     "exportZone": "Export area",
     "exportZoneHint": "Pick a region to export",
-    "zoneHint": "Drag the corners to adjust the area, or drag outside to draw a new one",
+    "zoneHint": "Drag the area or its corners to adjust it · drag outside it, or with the middle button, to move the board · scroll to zoom",
     "exportButton": "Export",
     "exporting": "Exporting…",
     "cancelButton": "Cancel",

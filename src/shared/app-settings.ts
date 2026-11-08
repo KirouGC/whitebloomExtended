@@ -26,12 +26,16 @@ export type AppSettings = {
     theme: ThemePreference
     /** Custom crosshair cursor color (hex). null = native OS crosshair. */
     crosshairColor: string | null
+    /** Dotted background grid on every board (each board can also hide it on its own). */
+    backgroundDots: boolean
   }
   ink: {
     /** Last used pen color (hex). */
     penColor: string
     /** Last used pen thickness in world units. */
     penWidth: number
+    /** Pen width follows tablet pressure (and simulated pressure for mice). */
+    pressureSensitive: boolean
   }
   quickAccess: {
     /** Folders pinned on the start screen; each lists the workspaces inside it. */
@@ -55,11 +59,13 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   language: 'en',
   appearance: {
     theme: 'light',
-    crosshairColor: null
+    crosshairColor: null,
+    backgroundDots: true
   },
   ink: {
     penColor: '#111111',
-    penWidth: 2
+    penWidth: 2,
+    pressureSensitive: true
   },
   quickAccess: {
     folders: [],
@@ -164,8 +170,8 @@ export function normalizeAppSettings(value: unknown): AppSettings {
     files?: { unhandledDrop?: unknown; warnLargeImport?: unknown }
     commands?: { aliases?: unknown }
     language?: unknown
-    appearance?: { theme?: unknown; crosshairColor?: unknown }
-    ink?: { penColor?: unknown; penWidth?: unknown }
+    appearance?: { theme?: unknown; crosshairColor?: unknown; backgroundDots?: unknown }
+    ink?: { penColor?: unknown; penWidth?: unknown; pressureSensitive?: unknown }
     quickAccess?: { folders?: unknown; neverAskToAdd?: unknown }
   }
   return {
@@ -185,11 +191,13 @@ export function normalizeAppSettings(value: unknown): AppSettings {
     language: normalizeLanguage(candidate.language),
     appearance: {
       theme: normalizeTheme(candidate.appearance?.theme),
-      crosshairColor: normalizeHexColor(candidate.appearance?.crosshairColor)
+      crosshairColor: normalizeHexColor(candidate.appearance?.crosshairColor),
+      backgroundDots: candidate.appearance?.backgroundDots !== false
     },
     ink: {
       penColor: normalizeHexColor(candidate.ink?.penColor) ?? DEFAULT_APP_SETTINGS.ink.penColor,
-      penWidth: normalizePenWidth(candidate.ink?.penWidth)
+      penWidth: normalizePenWidth(candidate.ink?.penWidth),
+      pressureSensitive: candidate.ink?.pressureSensitive !== false
     },
     quickAccess: {
       folders: normalizeQuickAccessFolders(candidate.quickAccess?.folders),

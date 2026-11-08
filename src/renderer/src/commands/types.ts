@@ -188,6 +188,8 @@ export type CanvasCommandActions = {
   restoreInkStrokes?: (binding: InkSurfaceBinding, strokes: InkStroke[]) => Promise<void>
   /** Erase a specific set of strokes from the acetate (used for eraser gesture). */
   eraseInkStrokes?: (binding: InkSurfaceBinding, strokes: InkStroke[]) => Promise<void>
+  /** Add several strokes at once (undo of an erase): one state update, one disk write. */
+  addInkStrokes?: (binding: InkSurfaceBinding, strokes: InkStroke[]) => Promise<void>
 }
 
 export type CanvasSubjectSnapshot = {
