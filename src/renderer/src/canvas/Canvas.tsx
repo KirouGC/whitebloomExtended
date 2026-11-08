@@ -38,6 +38,7 @@ import { BloomModal } from './BloomModal'
 import { InkOverlay } from './InkOverlay'
 import type { BoardInkStroke } from './InkOverlay'
 import { InkToolbar } from './InkToolbar'
+import { useInkPenStyle } from './inkPen'
 import type { InkTool } from './InkToolbar'
 import '../modules/index'
 import {
@@ -153,6 +154,18 @@ import {
   type CanvasClipboardPayload
 } from './clipboard'
 import './Canvas.css'
+import { BOARD_MAX_ZOOM, BOARD_MIN_ZOOM } from './zoomLimits'
+import { ExportZoneOverlay, type ScreenRect } from './ExportZoneOverlay'
+import {
+  EXPORT_ALL_PADDING,
+  exportBoardRegionToFile,
+  inkStrokeBounds,
+  padRect,
+  unionRects,
+  type WorldRect
+} from './exportBoardImage'
+import { useResolvedTheme } from '@renderer/theme/appearance'
+import { Crop, Maximize } from 'lucide-react'
 
 const nodeTypes = { text: TextNode, bud: BudNode, shape: ShapeNode, cluster: ClusterNode }
 const edgeTypes = { wb: WbEdge }
@@ -841,6 +854,7 @@ export function Canvas({
   const loadWorkspace = useWorkspaceStore((s) => s.loadWorkspace)
   const addWorkspaceBoard = useWorkspaceStore((s) => s.addBoard)
   const removeWorkspaceBoard = useWorkspaceStore((s) => s.removeBoard)
+  const inkPenStyle = useInkPenStyle()
   const unhandledDropSetting = useAppSettingsStore((s) => s.files.unhandledDrop)
   const warnLargeImport = useAppSettingsStore((s) => s.files.warnLargeImport)
   const loadAppSettings = useAppSettingsStore((s) => s.loadAppSettings)
@@ -868,7 +882,8 @@ export function Canvas({
     [currentBoardReferencedMaterialSignature]
   )
 
-  const { screenToFlowPosition } = useReactFlow()
+  const { screenToFlowPosition, getNodes, getNodesBounds, getViewport: getFlowViewport } = useReactFlow()
+  const resolvedTheme = useResolvedTheme()
 
   const canvasDropTargetRef = useRef<HTMLDivElement>(null)
   const [activeTool, setActiveTool] = useState<Tool>('pointer')
@@ -917,6 +932,10 @@ export function Canvas({
   const [canvasContextMenu, setCanvasContextMenu] = useState<CanvasContextMenuState | null>(null)
   const [shapeMenuAnchor, setShapeMenuAnchor] = useState<{ x: number; y: number } | null>(null)
   const [overflowAnchor, setOverflowAnchor] = useState<{ x: number; y: number } | null>(null)
+  const [exportAnchor, setExportAnchor] = useState<{ x: number; y: number } | null>(null)
+  const [exportZoneOpen, setExportZoneOpen] = useState(false)
+  const [exportBusy, setExportBusy] = useState(false)
+  const [exportToast, setExportToast] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null)
   const autoEditSequenceRef = useRef(0)
   const screenRecordingRecorderRef = useRef<MediaRecorder | null>(null)
   const screenRecordingStreamRef = useRef<MediaStream | null>(null)
@@ -1172,6 +1191,8 @@ export function Canvas({
       activeBloom === null &&
       paletteState === null &&
       !settingsOpen &&
+      exportAnchor === null &&
+      !exportZoneOpen &&
       !imageDropError &&
       !workspaceActionError &&
       pendingDocumentAction === null &&
@@ -1187,6 +1208,8 @@ export function Canvas({
       imageDropError,
       materialsMica.windows,
       overflowAnchor,
+      exportAnchor,
+      exportZoneOpen,
       paletteState,
       pendingDocumentAction,
       promoteSubboardModalOpen,
@@ -3741,6 +3764,70 @@ export function Canvas({
     setPendingDocumentAction(null)
   }, [])
 
+  // ── Image export ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!exportToast) return
+    const timer = window.setTimeout(() => setExportToast(null), 4000)
+    return () => window.clearTimeout(timer)
+  }, [exportToast])
+
+  const exportStrokes = acetateVisible ? boardInkStrokes : []
+
+  const runImageExport = useCallback(
+    async (rect: WorldRect): Promise<boolean> => {
+      setExportBusy(true)
+      try {
+        const savedPath = await exportBoardRegionToFile(
+          rect,
+          exportStrokes,
+          resolvedTheme,
+          boardName?.trim() || 'whitebloom'
+        )
+        if (savedPath) setExportToast({ kind: 'ok', text: t('exportImage.savedTo', { path: savedPath }) })
+        return savedPath !== null
+      } catch (error) {
+        console.error('[export] failed:', error)
+        setExportToast({ kind: 'error', text: t('exportImage.failed') })
+        return false
+      } finally {
+        setExportBusy(false)
+      }
+    },
+    [boardName, exportStrokes, resolvedTheme, t]
+  )
+
+  const handleExportAll = useCallback(() => {
+    const nodes = getNodes()
+    const nodeBounds = nodes.length > 0 ? getNodesBounds(nodes) : null
+    const content = unionRects(
+      nodeBounds && nodeBounds.width > 0 && nodeBounds.height > 0 ? nodeBounds : null,
+      inkStrokeBounds(exportStrokes)
+    )
+    if (!content) {
+      setExportToast({ kind: 'error', text: t('exportImage.nothingToExport') })
+      return
+    }
+    void runImageExport(padRect(content, EXPORT_ALL_PADDING))
+  }, [exportStrokes, getNodes, getNodesBounds, runImageExport, t])
+
+  const handleExportZone = useCallback(
+    async (screen: ScreenRect) => {
+      const topLeft = screenToFlowPosition({ x: screen.x, y: screen.y }, { snapToGrid: false })
+      const bottomRight = screenToFlowPosition(
+        { x: screen.x + screen.width, y: screen.y + screen.height },
+        { snapToGrid: false }
+      )
+      const saved = await runImageExport({
+        x: topLeft.x,
+        y: topLeft.y,
+        width: bottomRight.x - topLeft.x,
+        height: bottomRight.y - topLeft.y
+      })
+      if (saved) setExportZoneOpen(false)
+    },
+    [runImageExport, screenToFlowPosition]
+  )
+
   const handleNewBoard = useCallback(() => {
     if (isDirty) {
       setPendingDocumentAction('newBoard')
@@ -4791,6 +4878,8 @@ export function Canvas({
                 {...(boardViewport
                   ? { defaultViewport: boardViewport }
                   : { fitView: true, fitViewOptions: { padding: 0.25, maxZoom: 0.75 } })}
+                minZoom={BOARD_MIN_ZOOM}
+                maxZoom={BOARD_MAX_ZOOM}
                 proOptions={{ hideAttribution: true }}
                 data-board-capture="root"
               >
@@ -4804,6 +4893,7 @@ export function Canvas({
                 <InkOverlay
                   active={activeTool === 'ink'}
                   activeTool={activeInkTool}
+                  penStyle={inkPenStyle}
                   acetateVisible={acetateVisible}
                   acetateStrokes={boardInkStrokes}
                   onTransfer={(stroke) => {
@@ -4846,6 +4936,7 @@ export function Canvas({
                       onGoHome={onGoHome}
                       onGoToWorkspaceHome={onGoToWorkspaceHome}
                       onNewBoard={handleNewBoard}
+                      onExport={setExportAnchor}
                       onOverflow={setOverflowAnchor}
                     />
                   </div>
@@ -5009,6 +5100,50 @@ export function Canvas({
             commandSession={activePaletteCommandSession}
           />
         )}
+
+        {exportAnchor ? (
+          <PetalMenu
+            items={[
+              {
+                id: 'export-all',
+                label: t('exportImage.exportAll'),
+                subtitle: t('exportImage.exportAllHint'),
+                icon: <Maximize size={14} strokeWidth={1.8} />,
+                onActivate: handleExportAll,
+                disabled: exportBusy
+              },
+              {
+                id: 'export-zone',
+                label: t('exportImage.exportZone'),
+                subtitle: t('exportImage.exportZoneHint'),
+                icon: <Crop size={14} strokeWidth={1.8} />,
+                onActivate: () => setExportZoneOpen(true),
+                disabled: exportBusy
+              }
+            ]}
+            anchor={exportAnchor}
+            onClose={() => setExportAnchor(null)}
+          />
+        ) : null}
+
+        {exportZoneOpen ? (
+          <ExportZoneOverlay
+            busy={exportBusy}
+            zoom={getFlowViewport().zoom}
+            onExport={(rect) => void handleExportZone(rect)}
+            onCancel={() => setExportZoneOpen(false)}
+          />
+        ) : null}
+
+        {exportToast ? (
+          <div
+            className={`export-toast export-toast--${exportToast.kind}`}
+            role="status"
+            data-board-capture="exclude"
+          >
+            {exportToast.text}
+          </div>
+        ) : null}
 
         {overflowAnchor
           ? (() => {

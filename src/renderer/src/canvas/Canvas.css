@@ -22,22 +22,22 @@
 /* Text tool: enforce crosshair cursor everywhere */
 .canvas--tool-text,
 .canvas--tool-text * {
-  cursor: crosshair !important;
+  cursor: var(--wb-crosshair-cursor, crosshair) !important;
 }
 
 .canvas--tool-shape,
 .canvas--tool-shape * {
-  cursor: crosshair !important;
+  cursor: var(--wb-crosshair-cursor, crosshair) !important;
 }
 
 .canvas--tool-payload,
 .canvas--tool-payload * {
-  cursor: crosshair !important;
+  cursor: var(--wb-crosshair-cursor, crosshair) !important;
 }
 
 .canvas--tool-ink,
 .canvas--tool-ink * {
-  cursor: crosshair !important;
+  cursor: var(--wb-crosshair-cursor, crosshair) !important;
 }
 
 /* Toolbars should always use normal system cursors regardless of active tool. */

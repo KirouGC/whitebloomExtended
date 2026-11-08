@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { NodeToolbar, Position, type NodeProps, useReactFlow, useUpdateNodeInternals } from '@xyflow/react'
 import { useBoardStore } from '@renderer/stores/board'
@@ -11,14 +11,15 @@ import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin'
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext'
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary'
 import {
+  $getRoot,
   $getSelection,
   $isRangeSelection,
   KEY_DOWN_COMMAND,
   COMMAND_PRIORITY_EDITOR,
   type LexicalEditor,
 } from 'lexical'
-import { $patchStyleText } from '@lexical/selection'
-import { TEXT_COLOR_COMMAND } from './textEditorCommands'
+import { $patchStyleText, getCSSFromStyleObject, getStyleObjectFromCSS } from '@lexical/selection'
+import { TEXT_COLOR_COMMAND, TEXT_STYLE_COMMAND } from './textEditorCommands'
 import { HeadingNode, QuoteNode } from '@lexical/rich-text'
 import { ListNode, ListItemNode } from '@lexical/list'
 import { CodeHighlightNode, CodeNode } from '@lexical/code-core'
@@ -61,6 +62,39 @@ const MIN_AUTO_WIDTH = 180
 const MIN_WRAP_WIDTH = 120
 const EDGE_RESIZE_ZONE_PX = 6
 const EDGE_ICON_OFFSET_PX = 10
+const MIN_FIT_HEIGHT = 40
+const MIN_FIT_SCALE = 0.05
+const MAX_FIT_SCALE = 12
+
+type FitResizeSession = {
+  startClientX: number
+  startClientY: number
+  startWidth: number
+  startHeight: number
+}
+
+/**
+ * Find the largest scale at which the content fits the box. Layout width shrinks as
+ * the scale grows (content is laid out at boxWidth / scale and visually scaled back),
+ * so the scaled height is monotonic in the scale and a binary search converges.
+ */
+function computeFitScale(inner: HTMLElement, boxWidth: number, boxHeight: number): number {
+  if (boxWidth <= 0 || boxHeight <= 0) return 1
+  const fits = (scale: number): boolean => {
+    inner.style.width = `${boxWidth / scale}px`
+    return inner.scrollHeight * scale <= boxHeight + 0.5
+  }
+  let lo = MIN_FIT_SCALE
+  let hi = MAX_FIT_SCALE
+  if (fits(hi)) return hi
+  if (!fits(lo)) return lo
+  for (let i = 0; i < 18; i += 1) {
+    const mid = (lo + hi) / 2
+    if (fits(mid)) lo = mid
+    else hi = mid
+  }
+  return lo
+}
 
 type ResizeEdge = 'left' | 'right'
 
@@ -111,6 +145,32 @@ function TextEditorPlugins({
         if ($isRangeSelection(selection)) {
           $patchStyleText(selection, { color: color.length > 0 ? color : null })
         }
+        return true
+      },
+      COMMAND_PRIORITY_EDITOR
+    )
+  }, [editor])
+
+  // Handle TEXT_STYLE_COMMAND: font family / size. A collapsed caret styles the whole
+  // text box (like Microsoft Whiteboard) and the caret, so subsequent typing matches.
+  useEffect(() => {
+    return editor.registerCommand(
+      TEXT_STYLE_COMMAND,
+      (patch) => {
+        const selection = $getSelection()
+        if (!$isRangeSelection(selection)) return true
+        if (selection.isCollapsed()) {
+          for (const textNode of $getRoot().getAllTextNodes()) {
+            const styles = getStyleObjectFromCSS(textNode.getStyle())
+            const next: Record<string, string> = { ...styles }
+            for (const [key, value] of Object.entries(patch)) {
+              if (value === null) delete next[key]
+              else next[key] = value
+            }
+            textNode.setStyle(getCSSFromStyleObject(next))
+          }
+        }
+        $patchStyleText(selection, patch)
         return true
       },
       COMMAND_PRIORITY_EDITOR
@@ -226,6 +286,15 @@ export function TextNode({ id, data, selected, dragging, positionAbsoluteX, posi
   const resizeSessionRef = useRef<ResizeSession | null>(null)
   const resizePreviewWidthRef = useRef<number | null>(null)
   const pendingCaretClientPointRef = useRef<{ x: number; y: number } | null>(null)
+  const isFit = widthMode === 'fit'
+  const fitInnerRef = useRef<HTMLDivElement>(null)
+  const [fitScale, setFitScale] = useState(1)
+  const [fitPreview, setFitPreview] = useState<{ w: number; h: number } | null>(null)
+  const fitSessionRef = useRef<FitResizeSession | null>(null)
+  // Re-rendering into/out of fit mode can drop editor focus; don't treat that as "done editing".
+  const fitTogglingRef = useRef(false)
+  const fitWidth = fitPreview?.w ?? Math.max(MIN_WRAP_WIDTH, wrapWidth ?? size?.w ?? MIN_AUTO_WIDTH)
+  const fitHeight = fitPreview?.h ?? Math.max(MIN_FIT_HEIGHT, size?.h ?? MIN_FIT_HEIGHT)
   const handledAutoEditTokenRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -306,7 +375,7 @@ export function TextNode({ id, data, selected, dragging, positionAbsoluteX, posi
   }, [])
 
   const handleEditorBlur = useCallback(() => {
-    if (resizeSessionRef.current) {
+    if (resizeSessionRef.current || fitTogglingRef.current) {
       focusEditor()
       return
     }
@@ -316,9 +385,9 @@ export function TextNode({ id, data, selected, dragging, positionAbsoluteX, posi
   const syncNodeDimensions = useCallback(() => {
     const nodeEl = containerRef.current
     if (!nodeEl) return
-    nodeEl.style.height = 'auto'
+    if (!isFit) nodeEl.style.height = 'auto'
     updateNodeInternals(id)
-  }, [id, updateNodeInternals])
+  }, [id, isFit, updateNodeInternals])
 
   const measureAutoWidth = useCallback(() => {
     const nodeEl = containerRef.current
@@ -408,7 +477,7 @@ export function TextNode({ id, data, selected, dragging, positionAbsoluteX, posi
   useEffect(() => {
     if (!editing) return
     const frame = window.requestAnimationFrame(() => {
-      if (widthMode === 'fixed') {
+      if (widthMode === 'fixed' || widthMode === 'fit') {
         setEditingWidth(wrapWidth ?? MIN_AUTO_WIDTH)
         syncNodeDimensions()
         return
@@ -437,6 +506,13 @@ export function TextNode({ id, data, selected, dragging, positionAbsoluteX, posi
   }, [content, editing, syncNodeDimensions])
 
   const nodeStyle = useMemo(() => {
+    if (isFit) {
+      return {
+        width: `${resizePreviewWidth ?? fitWidth}px`,
+        height: `${fitHeight}px`
+      }
+    }
+
     if (resizePreviewWidth !== null) {
       return { width: `${Math.max(1, resizePreviewWidth)}px`, height: 'auto' as const }
     }
@@ -458,7 +534,99 @@ export function TextNode({ id, data, selected, dragging, positionAbsoluteX, posi
     }
 
     return { width: `${editingWidth}px`, maxWidth: `${maxAutoWidth}px`, height: 'auto' as const }
-  }, [editing, editingWidth, maxAutoWidth, resizePreviewWidth, widthMode, wrapWidth])
+  }, [editing, editingWidth, fitHeight, fitWidth, isFit, maxAutoWidth, resizePreviewWidth, widthMode, wrapWidth])
+
+  // ── Auto-fit: scale text so it fills the box's own area ───────────────────────
+  const recomputeFit = useCallback(() => {
+    if (!isFit) return
+    const nodeEl = containerRef.current
+    const inner = fitInnerRef.current
+    if (!nodeEl || !inner) return
+    const cs = window.getComputedStyle(nodeEl)
+    const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) + parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth)
+    const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom) + parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth)
+    const boxW = (resizePreviewWidthRef.current ?? fitWidth) - padX
+    const boxH = fitHeight - padY
+    const scale = computeFitScale(inner, boxW, boxH)
+    inner.style.width = `${boxW / scale}px`
+    setFitScale((prev) => (Math.abs(prev - scale) < 0.001 ? prev : scale))
+  }, [fitHeight, fitWidth, isFit])
+
+  useLayoutEffect(() => {
+    recomputeFit()
+  }, [recomputeFit, content, draftContent, editing, resizePreviewWidth])
+
+  useEffect(() => {
+    if (!isFit) return
+    const inner = fitInnerRef.current
+    if (!inner) return
+    // Fonts load asynchronously; re-fit once they're ready.
+    void document.fonts?.ready.then(() => recomputeFit())
+  }, [isFit, recomputeFit])
+
+  const toggleAutoFit = useCallback(() => {
+    const nodeEl = containerRef.current
+    const currentW = Math.round(nodeEl?.offsetWidth ?? size?.w ?? MIN_AUTO_WIDTH)
+    const currentH = Math.round(nodeEl?.offsetHeight ?? size?.h ?? MIN_FIT_HEIGHT)
+    if (isFit) {
+      updateNodeText(id, { content: draftContentRef.current, widthMode: 'fixed', wrapWidth: currentW })
+    } else {
+      sizeRef.current = { w: currentW, h: Math.max(MIN_FIT_HEIGHT, currentH) }
+      updateNodeSize(id, currentW, Math.max(MIN_FIT_HEIGHT, currentH))
+      updateNodeText(id, { content: draftContentRef.current, widthMode: 'fit', wrapWidth: Math.max(MIN_WRAP_WIDTH, currentW) })
+    }
+    fitTogglingRef.current = true
+    window.requestAnimationFrame(() => {
+      updateNodeInternals(id)
+      if (editing) editorRef.current?.focus()
+      window.requestAnimationFrame(() => {
+        fitTogglingRef.current = false
+      })
+    })
+  }, [editing, id, isFit, size?.h, size?.w, updateNodeInternals, updateNodeSize, updateNodeText])
+
+  // Corner handle: resizes width and height together (fit mode only).
+  const beginFitResize = useCallback(
+    (event: React.PointerEvent<HTMLDivElement>) => {
+      if (event.button !== 0) return
+      event.preventDefault()
+      event.stopPropagation()
+      const session: FitResizeSession = {
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startWidth: fitWidth,
+        startHeight: fitHeight
+      }
+      fitSessionRef.current = session
+      setResizing(true)
+      let latest = { w: fitWidth, h: fitHeight }
+
+      const onMove = (e: PointerEvent): void => {
+        const zoom = getViewport().zoom || 1
+        latest = {
+          w: Math.max(MIN_WRAP_WIDTH, Math.round(session.startWidth + (e.clientX - session.startClientX) / zoom)),
+          h: Math.max(MIN_FIT_HEIGHT, Math.round(session.startHeight + (e.clientY - session.startClientY) / zoom))
+        }
+        setFitPreview(latest)
+        updateNodeInternals(id)
+      }
+      const onUp = (): void => {
+        window.removeEventListener('pointermove', onMove)
+        window.removeEventListener('pointerup', onUp)
+        fitSessionRef.current = null
+        setResizing(false)
+        setFitPreview(null)
+        sizeRef.current = { w: latest.w, h: latest.h }
+        updateNodeSize(id, latest.w, latest.h)
+        updateNodeText(id, { content: draftContentRef.current, widthMode: 'fit', wrapWidth: latest.w })
+        updateNodeInternals(id)
+        if (editing) focusEditor()
+      }
+      window.addEventListener('pointermove', onMove)
+      window.addEventListener('pointerup', onUp)
+    },
+    [editing, fitHeight, fitWidth, focusEditor, getViewport, id, updateNodeInternals, updateNodeSize, updateNodeText]
+  )
 
   const displayConfig = useMemo(
     () => ({
@@ -527,17 +695,17 @@ export function TextNode({ id, data, selected, dragging, positionAbsoluteX, posi
 
       updateNodeText(id, {
         content: draftContentRef.current,
-        widthMode: 'fixed',
+        widthMode: isFit ? 'fit' : 'fixed',
         wrapWidth: finalWidth
       })
 
       const nodeEl = containerRef.current
-      const measuredH = nodeEl ? Math.round(nodeEl.offsetHeight) : sizeRef.current.h
+      const measuredH = isFit ? fitHeight : nodeEl ? Math.round(nodeEl.offsetHeight) : sizeRef.current.h
       sizeRef.current = { w: finalWidth, h: measuredH }
       updateNodeSize(id, finalWidth, measuredH)
       updateNodeInternals(id)
     },
-    [editing, focusEditor, id, updateNodeInternals, updateNodePosition, updateNodeSize, updateNodeText]
+    [editing, fitHeight, focusEditor, id, isFit, updateNodeInternals, updateNodePosition, updateNodeSize, updateNodeText]
   )
 
   const onResizePointerUp = useCallback(() => {
@@ -609,15 +777,18 @@ export function TextNode({ id, data, selected, dragging, positionAbsoluteX, posi
     <>
       <div
         ref={containerRef}
-        className={`text-node${selected ? ' text-node--selected' : ''}${editing ? ' nodrag nopan' : ''}${resizing ? ' text-node--resizing nodrag nopan' : ''}${activeResizeEdge === 'left' ? ' text-node--resize-hover-left' : ''}${activeResizeEdge === 'right' ? ' text-node--resize-hover-right' : ''}`}
+        className={`text-node${selected ? ' text-node--selected' : ''}${editing ? ' nodrag nopan' : ''}${resizing ? ' text-node--resizing nodrag nopan' : ''}${activeResizeEdge === 'left' ? ' text-node--resize-hover-left' : ''}${activeResizeEdge === 'right' ? ' text-node--resize-hover-right' : ''}${isFit ? ' text-node--fit' : ''}`}
         style={nodeStyle}
       >
         {editing ? (
           <LexicalComposer initialConfig={editorConfig}>
             <NodeToolbar isVisible position={Position.Top} offset={8}>
-              <FormatToolbar />
+              <FormatToolbar autoFit={isFit} onToggleAutoFit={toggleAutoFit} />
             </NodeToolbar>
-            <div className="text-node__editor nodrag nopan nowheel" onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+            <div
+              ref={isFit ? fitInnerRef : undefined}
+              style={isFit ? { transform: `scale(${fitScale})`, transformOrigin: 'top left' } : undefined}
+              className="text-node__editor nodrag nopan nowheel" onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
               <RichTextPlugin
                 contentEditable={
                   <ContentEditable
@@ -662,7 +833,12 @@ export function TextNode({ id, data, selected, dragging, positionAbsoluteX, posi
             </div>
           </LexicalComposer>
         ) : (
-          <div className="text-node__content" onDoubleClick={(event) => openEditing(event)}>
+          <div
+            ref={isFit ? fitInnerRef : undefined}
+            style={isFit ? { transform: `scale(${fitScale})`, transformOrigin: 'top left' } : undefined}
+            className="text-node__content"
+            onDoubleClick={(event) => openEditing(event)}
+          >
             <LexicalComposer key={content} initialConfig={displayConfig}>
               <RichTextPlugin
                 contentEditable={<ContentEditable className="text-node__contentEditable" />}
@@ -706,6 +882,15 @@ export function TextNode({ id, data, selected, dragging, positionAbsoluteX, posi
               }}
             />
           </>
+        )}
+
+        {isFit && (selected || fitPreview) && !dragging && (
+          <div
+            className="text-node__fit-handle nodrag nopan"
+            onPointerDown={beginFitResize}
+            title={t('textNode.resizeFitLabel')}
+            aria-hidden="true"
+          />
         )}
 
         {(selected || resizing) && activeResizeEdge && (

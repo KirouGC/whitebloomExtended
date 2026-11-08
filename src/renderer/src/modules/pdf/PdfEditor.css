@@ -54,7 +54,7 @@
 }
 
 .pdf-editor--tool-ink .pdf-editor__viewport {
-  cursor: crosshair;
+  cursor: var(--wb-crosshair-cursor, crosshair);
 }
 
 .pdf-editor__ink-toolbar {

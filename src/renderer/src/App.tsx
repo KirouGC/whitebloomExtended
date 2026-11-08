@@ -6,6 +6,9 @@ import ProjectFinderWindow, {
   type ProjectFinderMode
 } from './components/project-finder/ProjectFinderWindow'
 import StartScreen from './components/start-screen/StartScreen'
+import AddToQuickAccessModal from './components/start-screen/AddToQuickAccessModal'
+import SettingsModal from './components/settings-modal/SettingsModal'
+import { normalizeFolderKey, parentFolder } from '../../shared/quick-access'
 import CreateBoardModal from './components/workspace-home/CreateBoardModal'
 import ConfirmTrashModal from './components/workspace-home/ConfirmTrashModal'
 import WorkspaceHome from './components/workspace-home/WorkspaceHome'
@@ -13,6 +16,8 @@ import { PetalButton, PetalPanel } from './components/petal'
 import { useBoardStore } from './stores/board'
 import { useWorkspaceStore } from './stores/workspace'
 import { useConnectivityHeartbeat } from './stores/useConnectivityHeartbeat'
+import { useAppSettingsStore } from './stores/app-settings'
+import { useApplyAppearance } from './theme/appearance'
 import {
   isTextLeafNode,
   lexicalContentToPlainText,
@@ -83,6 +88,11 @@ function App(): React.JSX.Element {
   const { t } = useTranslation()
 
   useConnectivityHeartbeat()
+  useApplyAppearance()
+  const loadAppSettings = useAppSettingsStore((s) => s.loadAppSettings)
+  useEffect(() => {
+    void loadAppSettings()
+  }, [loadAppSettings])
 
   const boardPath = useBoardStore((s) => s.path)
   const boardName = useBoardStore((s) => s.name)
@@ -109,6 +119,8 @@ function App(): React.JSX.Element {
   const [view, setView] = useState<AppView>('start')
   const [busyAction, setBusyAction] = useState<BusyAction>(null)
   const [shellError, setShellError] = useState<string | null>(null)
+  const [startSettingsOpen, setStartSettingsOpen] = useState(false)
+  const [quickAccessPromptFolder, setQuickAccessPromptFolder] = useState<string | null>(null)
   const [transientBoards, setTransientBoards] = useState<string[]>([])
   const [recentBoards, setRecentBoards] = useState<RecentBoardItem[]>([])
   const [boardThumbnails, setBoardThumbnails] = useState<Record<string, string>>({})
@@ -463,6 +475,16 @@ function App(): React.JSX.Element {
         clearBoard()
         setProjectFinderMode(null)
         setView('workspace-home')
+
+        // Offer to pin the containing folder to Quick Access (once per folder).
+        const { quickAccess } = useAppSettingsStore.getState()
+        const folder = parentFolder(result.workspaceRoot)
+        const alreadyPinned = quickAccess.folders.some(
+          (f) => normalizeFolderKey(f) === normalizeFolderKey(folder)
+        )
+        if (!quickAccess.neverAskToAdd && !alreadyPinned && folder) {
+          setQuickAccessPromptFolder(folder)
+        }
       } catch (error) {
         setShellError(error instanceof Error ? error.message : 'Unable to create a workspace.')
       } finally {
@@ -695,6 +717,21 @@ function App(): React.JSX.Element {
     setPendingNavigation(null)
   }, [])
 
+  const handleQuickAccessDecision = useCallback(
+    ({ add, neverAskAgain }: { add: boolean; neverAskAgain: boolean }) => {
+      const folder = quickAccessPromptFolder
+      setQuickAccessPromptFolder(null)
+      const store = useAppSettingsStore.getState()
+      if (add && folder) void store.addQuickAccessFolder(folder)
+      if (neverAskAgain) void store.setQuickAccessNeverAsk(true)
+    },
+    [quickAccessPromptFolder]
+  )
+
+  const quickAccessDialog = quickAccessPromptFolder ? (
+    <AddToQuickAccessModal folderPath={quickAccessPromptFolder} onDecide={handleQuickAccessDecision} />
+  ) : null
+
   const canReturnToBoard = boardPath !== null && view !== 'board'
   const pendingNavigationDialog = pendingNavigation ? (
     <PetalPanel
@@ -741,6 +778,7 @@ function App(): React.JSX.Element {
           />
         ) : null}
         {pendingNavigationDialog}
+        {quickAccessDialog}
       </>
     )
   }
@@ -780,6 +818,7 @@ function App(): React.JSX.Element {
           />
         ) : null}
         {pendingNavigationDialog}
+        {quickAccessDialog}
       </>
     )
   }
@@ -799,7 +838,10 @@ function App(): React.JSX.Element {
         onOpenTransientBoard={(nextBoardPath) => void handleOpenTransientBoard(nextBoardPath)}
         onOpenRecentBoard={(item) => void handleOpenRecentBoard(item)}
         onTrashBoard={(nextBoardPath) => void handleRequestTrashBoard(nextBoardPath)}
+        onOpenWorkspaceRoot={(nextWorkspaceRoot) => void handleOpenWorkspaceFromFinder(nextWorkspaceRoot)}
+        onOpenSettings={() => setStartSettingsOpen(true)}
       />
+      {startSettingsOpen ? <SettingsModal onClose={() => setStartSettingsOpen(false)} /> : null}
       {projectFinderMode ? (
         <ProjectFinderWindow
           mode={projectFinderMode}
@@ -823,6 +865,7 @@ function App(): React.JSX.Element {
         />
       ) : null}
       {pendingNavigationDialog}
+      {quickAccessDialog}
     </>
   )
 }

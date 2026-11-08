@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next'
 import { PetalField } from '@renderer/components/petal'
 import { useAppSettingsStore } from '@renderer/stores/app-settings'
 import type { UnhandledDropBehavior } from '../../../../shared/app-settings'
+import AppearanceFields from './AppearanceFields'
 
 export default function AppSection() {
   const { t } = useTranslation()
@@ -22,6 +23,8 @@ export default function AppSection() {
   const updateLanguage = useAppSettingsStore((s) => s.updateLanguage)
   const updateUnhandledDrop = useAppSettingsStore((s) => s.updateUnhandledDrop)
   const updateWarnLargeImport = useAppSettingsStore((s) => s.updateWarnLargeImport)
+  const quickAccessNeverAsk = useAppSettingsStore((s) => s.quickAccess.neverAskToAdd)
+  const setQuickAccessNeverAsk = useAppSettingsStore((s) => s.setQuickAccessNeverAsk)
 
   const [advancedOpen, setAdvancedOpen] = useState(false)
   const [confirmingDisableWarn, setConfirmingDisableWarn] = useState(false)
@@ -66,6 +69,22 @@ export default function AppSection() {
             <option value="en">{t('appSettings.languageEnglish')}</option>
             <option value="es">{t('appSettings.languageSpanish')}</option>
           </select>
+        </div>
+
+        <AppearanceFields />
+
+        <div className="settings-field">
+          <label className="settings-toggle">
+            <input
+              type="checkbox"
+              checked={quickAccessNeverAsk}
+              onChange={(e) => void setQuickAccessNeverAsk(e.target.checked)}
+            />
+            <span className="settings-toggle__label">{t('appSettings.quickAccessNeverAskLabel')}</span>
+          </label>
+          <span className="settings-field__hint" style={{ paddingLeft: 22 }}>
+            {t('appSettings.quickAccessNeverAskHint')}
+          </span>
         </div>
 
         <div className="settings-field">

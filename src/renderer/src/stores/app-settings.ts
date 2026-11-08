@@ -3,12 +3,17 @@ import {
   DEFAULT_APP_SETTINGS,
   normalizeCommandAlias,
   normalizeAppSettings,
+  normalizeHexColor,
   normalizeLanguage,
+  normalizePenWidth,
+  normalizeQuickAccessFolders,
   normalizeUsername,
   type AppSettings,
+  type ThemePreference,
   type UnhandledDropBehavior
 } from '../../../shared/app-settings'
 import i18n from '../i18n'
+import { normalizeFolderKey } from '../../../shared/quick-access'
 import { createLogger } from '../../../shared/logger'
 import { useBoardStore } from './board'
 
@@ -20,6 +25,36 @@ type AppSettingsState = AppSettings & {
   updateWarnLargeImport: (warn: boolean) => Promise<void>
   updateLanguage: (lang: string) => Promise<void>
   updateCommandAlias: (commandId: string, alias: string) => Promise<void>
+  updateTheme: (theme: ThemePreference) => Promise<void>
+  updateCrosshairColor: (color: string | null) => Promise<void>
+  updatePenStyle: (style: Partial<AppSettings['ink']>) => Promise<void>
+  addQuickAccessFolder: (folderPath: string) => Promise<void>
+  removeQuickAccessFolder: (folderPath: string) => Promise<void>
+  setQuickAccessNeverAsk: (neverAsk: boolean) => Promise<void>
+}
+
+function pickSettings(state: AppSettingsState): AppSettings {
+  return {
+    user: state.user,
+    files: state.files,
+    commands: state.commands,
+    language: state.language,
+    appearance: state.appearance,
+    ink: state.ink,
+    quickAccess: state.quickAccess
+  }
+}
+
+// Debounce disk writes for settings that change rapidly (e.g. dragging a slider).
+let pendingSaveTimer: ReturnType<typeof setTimeout> | null = null
+function scheduleSave(getState: () => AppSettingsState): void {
+  if (pendingSaveTimer) clearTimeout(pendingSaveTimer)
+  pendingSaveTimer = setTimeout(() => {
+    pendingSaveTimer = null
+    void window.api.saveAppSettings(pickSettings(getState())).then((result) => {
+      if (!result.ok) logger.error('failed to persist app settings')
+    })
+  }, 300)
 }
 
 const logger = createLogger('app-settings')
@@ -104,5 +139,46 @@ export const useAppSettingsStore = create<AppSettingsState>((set, get) => ({
     const result = await window.api.saveAppSettings(next)
     set({ ...normalizeAppSettings(result.settings) })
     if (!result.ok) logger.error('failed to persist app settings')
+  },
+
+  updateTheme: async (theme) => {
+    set({ appearance: { ...get().appearance, theme } })
+    scheduleSave(get)
+  },
+
+  updateCrosshairColor: async (color) => {
+    set({ appearance: { ...get().appearance, crosshairColor: color === null ? null : normalizeHexColor(color) } })
+    scheduleSave(get)
+  },
+
+  updatePenStyle: async (style) => {
+    const current = get().ink
+    set({
+      ink: {
+        penColor: style.penColor !== undefined ? (normalizeHexColor(style.penColor) ?? current.penColor) : current.penColor,
+        penWidth: style.penWidth !== undefined ? normalizePenWidth(style.penWidth) : current.penWidth
+      }
+    })
+    scheduleSave(get)
+  },
+
+  addQuickAccessFolder: async (folderPath) => {
+    const current = get().quickAccess
+    set({ quickAccess: { ...current, folders: normalizeQuickAccessFolders([...current.folders, folderPath]) } })
+    scheduleSave(get)
+  },
+
+  removeQuickAccessFolder: async (folderPath) => {
+    const current = get().quickAccess
+    const key = normalizeFolderKey(folderPath)
+    set({
+      quickAccess: { ...current, folders: current.folders.filter((f) => normalizeFolderKey(f) !== key) }
+    })
+    scheduleSave(get)
+  },
+
+  setQuickAccessNeverAsk: async (neverAsk) => {
+    set({ quickAccess: { ...get().quickAccess, neverAskToAdd: neverAsk } })
+    scheduleSave(get)
   }
 }))

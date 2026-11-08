@@ -9,7 +9,8 @@ export function createMainWindow(): BrowserWindow {
     height: 670,
     show: false,
     autoHideMenuBar: true,
-    ...(process.platform === 'linux' ? { icon } : {}),
+    // Window/taskbar icon on Windows and Linux (macOS uses the app bundle icon).
+    ...(process.platform !== 'darwin' ? { icon } : {}),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false

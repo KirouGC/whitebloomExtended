@@ -328,3 +328,170 @@
   outline: none;
   border-color: var(--color-accent-blue);
 }
+
+/* ── Appearance: theme segmented picker ───────────────────────────────── */
+
+.settings-segmented {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+
+.settings-segmented__item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+  border-radius: var(--radius-border-frame);
+  border: 1px solid var(--color-border-subtle);
+  background: transparent;
+  cursor: pointer;
+  font-family: inherit;
+  color: var(--color-secondary-fg);
+  transition: border-color 100ms ease, background 100ms ease;
+}
+
+.settings-segmented__item:hover {
+  background: var(--color-hover-bg);
+}
+
+.settings-segmented__item--active {
+  border-color: var(--color-accent-blue);
+  box-shadow: 0 0 0 1px var(--color-accent-blue);
+  color: var(--color-primary-fg);
+}
+
+.settings-segmented__label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 12px;
+}
+
+.settings-theme-preview {
+  display: block;
+  height: 46px;
+  border-radius: var(--radius-border-inner);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  position: relative;
+  overflow: hidden;
+  background-image: radial-gradient(rgba(80, 80, 80, 0.35) 1px, transparent 1px);
+  background-size: 8px 8px;
+}
+
+.settings-theme-preview > span {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 6px;
+  height: 10px;
+  border-radius: 4px;
+}
+
+.settings-theme-preview--light {
+  background-color: #fcfcfc;
+}
+
+.settings-theme-preview--light > span {
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.15);
+}
+
+.settings-theme-preview--dark {
+  background-color: #1b1c1f;
+  background-image: radial-gradient(rgba(200, 200, 200, 0.25) 1px, transparent 1px);
+}
+
+.settings-theme-preview--dark > span {
+  background: rgba(48, 50, 56, 0.95);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
+.settings-theme-preview--system {
+  background-image:
+    radial-gradient(rgba(128, 128, 128, 0.35) 1px, transparent 1px),
+    linear-gradient(115deg, #fcfcfc 50%, #1b1c1f 50%);
+  background-size: 8px 8px, 100% 100%;
+}
+
+.settings-theme-preview--system > span {
+  background: linear-gradient(115deg, rgba(255, 255, 255, 0.95) 50%, rgba(48, 50, 56, 0.95) 50%);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.2);
+}
+
+/* ── Appearance: crosshair color ──────────────────────────────────────── */
+
+.settings-crosshair {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.settings-crosshair__swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  position: relative;
+}
+
+.settings-crosshair__swatch {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--color-swatch-border);
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-secondary-fg);
+  background: transparent;
+  font-family: inherit;
+  transition: transform 80ms ease;
+}
+
+.settings-crosshair__swatch:hover {
+  transform: scale(1.08);
+}
+
+.settings-crosshair__swatch--default {
+  width: auto;
+  padding: 0 9px;
+  border-radius: 999px;
+  font-size: 11px;
+}
+
+.settings-crosshair__swatch--custom {
+  background: conic-gradient(from 0deg, #ff285a, #ffc21a, #00b86b, #0bbcd4, #1e87ff, #7c35ff, #ff285a);
+  color: #fff;
+}
+
+.settings-crosshair__swatch--selected {
+  box-shadow:
+    0 0 0 2px var(--color-surface-solid),
+    0 0 0 3.5px var(--color-accent-blue);
+}
+
+.settings-crosshair__native {
+  position: absolute;
+  width: 0;
+  height: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.settings-crosshair__preview {
+  height: 56px;
+  border-radius: var(--radius-border-inner);
+  border: 1px dashed var(--color-border-subtle);
+  background-color: var(--color-primary-bg);
+  background-image: radial-gradient(var(--color-grid-dot) 1px, transparent 1px);
+  background-size: 12px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--color-muted-fg);
+}

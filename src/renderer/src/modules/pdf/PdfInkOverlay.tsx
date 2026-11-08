@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { InkPagedUvSample } from '../../../../shared/ink'
 import { DEFAULT_INK_STROKE_DYNAMICS, DEFAULT_INK_STROKE_STYLE } from '../../../../shared/ink'
 import type { InkTool } from '../../canvas/InkToolbar'
+import type { InkPenStyle } from '../../canvas/InkOverlay'
 import {
   buildOutlineFromScreenSamples,
   clampPressure,
@@ -19,6 +20,7 @@ type PdfInkOverlayProps = {
   viewportRef: { current: HTMLDivElement | null }
   active: boolean
   activeTool: InkTool
+  penStyle: InkPenStyle
   strokes: PdfInkStroke[]
   onTransfer: (stroke: PdfInkStroke) => void
   onEraseComplete: (erasedStrokes: PdfInkStroke[]) => void
@@ -28,6 +30,7 @@ export function PdfInkOverlay({
   viewportRef,
   active,
   activeTool,
+  penStyle,
   strokes,
   onTransfer,
   onEraseComplete
@@ -45,12 +48,14 @@ export function PdfInkOverlay({
   const [scrollbarInsets, setScrollbarInsets] = useState({ right: 0, bottom: 0 })
 
   const currentOutline = useMemo(
-    () => (currentSamples.length > 1 ? buildOutlineFromScreenSamples(currentSamples) : []),
-    [currentSamples]
+    () => (currentSamples.length > 1 ? buildOutlineFromScreenSamples(currentSamples, penStyle.width) : []),
+    [currentSamples, penStyle.width]
   )
 
   useEffect(() => { strokesRef.current = strokes }, [strokes])
   useEffect(() => { activeToolRef.current = activeTool }, [activeTool])
+  const penStyleRef = useRef<InkPenStyle>(penStyle)
+  useEffect(() => { penStyleRef.current = penStyle }, [penStyle])
   useEffect(() => { onEraseCompleteRef.current = onEraseComplete }, [onEraseComplete])
 
   useEffect(() => {
@@ -113,10 +118,10 @@ export function PdfInkOverlay({
     drawStrokePolygon(
       context,
       currentOutline,
-      DEFAULT_INK_STROKE_STYLE.color,
+      penStyle.color,
       DEFAULT_INK_STROKE_STYLE.opacity
     )
-  }, [canvasSize.height, canvasSize.width, currentOutline])
+  }, [canvasSize.height, canvasSize.width, currentOutline, penStyle.color])
 
   useEffect(() => {
     if (active) return
@@ -258,7 +263,11 @@ export function PdfInkOverlay({
           onTransfer({
             id: crypto.randomUUID(),
             tool: 'pen',
-            style: { ...DEFAULT_INK_STROKE_STYLE },
+            style: {
+              ...DEFAULT_INK_STROKE_STYLE,
+              color: penStyleRef.current.color,
+              width: penStyleRef.current.width
+            },
             dynamics: { ...DEFAULT_INK_STROKE_DYNAMICS },
             samples: pagedSamples,
             createdAt: new Date().toISOString()

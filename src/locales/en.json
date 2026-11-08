@@ -9,7 +9,19 @@
     "unsavedQuickboards": "Unsaved quickboards",
     "noRecentBoards": "No recent boards",
     "moveToTrashTitle": "Move to trash",
-    "moveToTrashAria": "Move {{name}} to trash"
+    "moveToTrashAria": "Move {{name}} to trash",
+    "recentlyAction": "Recently",
+    "quickAccess": "Quick Access",
+    "quickAccessAdd": "Add folder to Quick Access",
+    "quickAccessNoFolders": "Add a folder with + to see its workspaces here.",
+    "quickAccessRemove": "Remove from Quick Access",
+    "quickAccessRemoveAria": "Remove {{name}} from Quick Access",
+    "quickAccessLoading": "Looking for workspaces…",
+    "quickAccessEmpty": "No workspaces in this folder yet.",
+    "quickAccessMissing": "This folder no longer exists or is not available.",
+    "quickAccessBoardCount_one": "{{count}} board",
+    "quickAccessBoardCount_other": "{{count}} boards",
+    "settingsLabel": "Settings"
   },
   "workspaceHome": {
     "workspaceLabel": "Workspace",
@@ -101,7 +113,8 @@
     "saveLabel": "Save",
     "newBoardLabel": "New board",
     "newQuickboardLabel": "New quickboard",
-    "moreActionsLabel": "More actions"
+    "moreActionsLabel": "More actions",
+    "exportLabel": "Export as image"
   },
   "boardTitle": {
     "untitledPlaceholder": "Untitled",
@@ -151,7 +164,20 @@
     "warnLargeFilesHint": "Shows a warning when importing a file over 50 MB.",
     "confirmDisableWarnText": "Large files can fill your workspace quickly. Are you sure?",
     "disableWarningButton": "Disable warning",
-    "keepWarningButton": "Keep it on"
+    "keepWarningButton": "Keep it on",
+    "themeLabel": "Theme",
+    "themeHint": "Choose a light or dark look, or follow your system setting.",
+    "themeLight": "Light",
+    "themeDark": "Dark",
+    "themeSystem": "System",
+    "crosshairLabel": "Crosshair cursor color",
+    "crosshairHint": "Used by the text, shape and ink tools.",
+    "crosshairDefault": "System default crosshair",
+    "crosshairDefaultShort": "Default",
+    "crosshairCustom": "Custom color",
+    "crosshairPreview": "Hover here to preview",
+    "quickAccessNeverAskLabel": "Never offer to add new workspace folders to Quick Access",
+    "quickAccessNeverAskHint": "When off, creating a workspace in a folder that is not in Quick Access asks whether to add it."
   },
   "petalPalette": {
     "ariaLabel": "Command palette",
@@ -210,7 +236,12 @@
     "textColorDefault": "Default",
     "alignLeftLabel": "Align left",
     "alignCenterLabel": "Align center",
-    "alignRightLabel": "Align right"
+    "alignRightLabel": "Align right",
+    "fontLabel": "Font",
+    "fontSizeLabel": "Font size",
+    "decreaseSizeLabel": "Decrease font size",
+    "increaseSizeLabel": "Increase font size",
+    "autoFitLabel": "Auto-fit text to box"
   },
   "edgeToolbar": {
     "styleLabel": "Edge style",
@@ -244,7 +275,8 @@
     "noResults": "No results"
   },
   "textNode": {
-    "placeholder": "Text"
+    "placeholder": "Text",
+    "resizeFitLabel": "Drag to resize the box; the text adapts"
   },
   "dialogs": {
     "largeFileTitle": "Large file",
@@ -263,7 +295,9 @@
     "workspaceFilter": "Whitebloom workspace",
     "boardFilter": "Whitebloom board",
     "createWorkspaceTitle": "Create workspace",
-    "saveBoardTitle": "Save board"
+    "saveBoardTitle": "Save board",
+    "quickAccessPickTitle": "Add folder to Quick Access",
+    "exportImageTitle": "Export board as image"
   },
   "navigation": {
     "saveBeforeLeavingTitle": "Save changes before leaving?",
@@ -271,5 +305,34 @@
     "saveButton": "Save",
     "discardButton": "Discard",
     "cancelButton": "Cancel"
+  },
+  "inkToolbar": {
+    "penLabel": "Pen (click again for options)",
+    "eraserLabel": "Eraser",
+    "clearLabel": "Clear ink layer",
+    "penStyleLabel": "Pen color and thickness",
+    "colorLabel": "Color",
+    "customColorLabel": "Custom color",
+    "thicknessLabel": "Thickness"
+  },
+  "quickAccessPrompt": {
+    "title": "Add folder to Quick Access?",
+    "body": "You created a workspace inside \"{{name}}\". Add this folder to Quick Access to find its workspaces from the start screen.",
+    "neverAsk": "Don't ask me again",
+    "notNow": "Not now",
+    "add": "Add to Quick Access"
+  },
+  "exportImage": {
+    "exportAll": "Export all",
+    "exportAllHint": "Crops to everything on the board",
+    "exportZone": "Export area",
+    "exportZoneHint": "Pick a region to export",
+    "zoneHint": "Drag the corners to adjust the area, or drag outside to draw a new one",
+    "exportButton": "Export",
+    "exporting": "Exporting…",
+    "cancelButton": "Cancel",
+    "savedTo": "Image saved to {{path}}",
+    "failed": "The image could not be exported.",
+    "nothingToExport": "The board is empty — nothing to export."
   }
 }

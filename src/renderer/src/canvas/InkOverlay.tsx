@@ -7,13 +7,21 @@ import {
   DEFAULT_INK_STROKE_STYLE
 } from '../../../shared/ink'
 import type { InkTool } from './InkToolbar'
+import { displayInkColor, useResolvedTheme } from '@renderer/theme/appearance'
+import { BOARD_MAX_ZOOM, BOARD_MIN_ZOOM } from './zoomLimits'
 import './InkOverlay.css'
 
 const ERASER_SCREEN_RADIUS = 20
 
+export type InkPenStyle = {
+  color: string
+  width: number
+}
+
 type InkOverlayProps = {
   active: boolean
   activeTool: InkTool
+  penStyle: InkPenStyle
   acetateVisible: boolean
   acetateStrokes: BoardInkStroke[]
   onTransfer: (stroke: BoardInkStroke) => void
@@ -62,7 +70,8 @@ function worldToScreenPoint(
 
 function buildStrokeOutline(
   samples: InkBoardWorldSample[],
-  viewport: { x: number; y: number; zoom: number }
+  viewport: { x: number; y: number; zoom: number },
+  width: number
 ): Array<[number, number]> {
   const points: StrokePoint[] = samples.map((sample) => {
     const [x, y] = worldToScreenPoint(sample, viewport)
@@ -70,7 +79,7 @@ function buildStrokeOutline(
   })
 
   return getStroke(points, {
-    size: DEFAULT_INK_STROKE_STYLE.width * viewport.zoom,
+    size: width * viewport.zoom,
     thinning: 0.62,
     smoothing: 0.58,
     streamline: 0.44,
@@ -95,18 +104,20 @@ function isValidPointerSample(event: PointerEvent): boolean {
   return Number.isFinite(event.clientX) && Number.isFinite(event.clientY)
 }
 
-const MIN_ZOOM = 0.1
-const MAX_ZOOM = 4
+const MIN_ZOOM = BOARD_MIN_ZOOM
+const MAX_ZOOM = BOARD_MAX_ZOOM
 
 export function InkOverlay({
   active,
   activeTool,
+  penStyle,
   acetateVisible,
   acetateStrokes,
   onTransfer,
   onEraseComplete
 }: InkOverlayProps) {
   const viewport = useViewport()
+  const resolvedTheme = useResolvedTheme()
   const { setViewport, getViewport } = useReactFlow()
   const rootRef = useRef<HTMLDivElement | null>(null)
   const glassCanvasRef = useRef<HTMLCanvasElement | null>(null)
@@ -128,12 +139,14 @@ export function InkOverlay({
   const [currentSamples, setCurrentSamples] = useState<InkBoardWorldSample[]>([])
   const [erasedIds, setErasedIds] = useState<ReadonlySet<string>>(new Set())
   const currentOutline = useMemo(
-    () => (currentSamples.length > 1 ? buildStrokeOutline(currentSamples, viewport) : []),
-    [currentSamples, viewport]
+    () => (currentSamples.length > 1 ? buildStrokeOutline(currentSamples, viewport, penStyle.width) : []),
+    [currentSamples, viewport, penStyle.width]
   )
 
   useEffect(() => { acetateStrokesRef.current = acetateStrokes }, [acetateStrokes])
   useEffect(() => { activeToolRef.current = activeTool }, [activeTool])
+  const penStyleRef = useRef<InkPenStyle>(penStyle)
+  useEffect(() => { penStyleRef.current = penStyle }, [penStyle])
   useEffect(() => { onEraseCompleteRef.current = onEraseComplete }, [onEraseComplete])
 
   useEffect(() => {
@@ -181,10 +194,10 @@ export function InkOverlay({
     drawStrokePolygon(
       context,
       currentOutline,
-      DEFAULT_INK_STROKE_STYLE.color,
+      displayInkColor(penStyle.color, resolvedTheme),
       DEFAULT_INK_STROKE_STYLE.opacity
     )
-  }, [canvasSize.height, canvasSize.width, currentOutline])
+  }, [canvasSize.height, canvasSize.width, currentOutline, penStyle.color, resolvedTheme])
 
   useEffect(() => {
     const canvas = acetateCanvasRef.current
@@ -197,10 +210,10 @@ export function InkOverlay({
 
     for (const stroke of acetateStrokes) {
       if (erasedIds.has(stroke.id)) continue
-      const outline = buildStrokeOutline(stroke.samples, viewport)
-      drawStrokePolygon(context, outline, stroke.style.color, stroke.style.opacity)
+      const outline = buildStrokeOutline(stroke.samples, viewport, stroke.style.width)
+      drawStrokePolygon(context, outline, displayInkColor(stroke.style.color, resolvedTheme), stroke.style.opacity)
     }
-  }, [acetateStrokes, acetateVisible, canvasSize.height, canvasSize.width, viewport, erasedIds])
+  }, [acetateStrokes, acetateVisible, canvasSize.height, canvasSize.width, viewport, erasedIds, resolvedTheme])
 
   useEffect(() => {
     if (active) return
@@ -360,7 +373,11 @@ export function InkOverlay({
           onTransfer({
             id: crypto.randomUUID(),
             tool: 'pen',
-            style: { ...DEFAULT_INK_STROKE_STYLE },
+            style: {
+              ...DEFAULT_INK_STROKE_STYLE,
+              color: penStyleRef.current.color,
+              width: penStyleRef.current.width
+            },
             dynamics: { ...DEFAULT_INK_STROKE_DYNAMICS },
             samples,
             createdAt: new Date().toISOString()

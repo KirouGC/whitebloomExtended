@@ -1,6 +1,6 @@
 export type Position = { x: number; y: number }
 export type Size = { w: number; h: number }
-export type WidthMode = 'auto' | 'fixed'
+export type WidthMode = 'auto' | 'fixed' | 'fit'
 export type ClusterColor = 'blue' | 'pink' | 'red' | 'purple' | 'green'
 export type ShapePreset =
   | 'rectangle'

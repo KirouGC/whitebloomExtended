@@ -9,7 +9,19 @@
     "unsavedQuickboards": "Tableros rápidos sin guardar",
     "noRecentBoards": "Sin tableros recientes",
     "moveToTrashTitle": "Mover a la papelera",
-    "moveToTrashAria": "Mover {{name}} a la papelera"
+    "moveToTrashAria": "Mover {{name}} a la papelera",
+    "recentlyAction": "Recientes",
+    "quickAccess": "Acceso rápido",
+    "quickAccessAdd": "Agregar carpeta a Acceso rápido",
+    "quickAccessNoFolders": "Agregá una carpeta con + para ver sus espacios de trabajo acá.",
+    "quickAccessRemove": "Quitar de Acceso rápido",
+    "quickAccessRemoveAria": "Quitar {{name}} de Acceso rápido",
+    "quickAccessLoading": "Buscando espacios de trabajo…",
+    "quickAccessEmpty": "Todavía no hay espacios de trabajo en esta carpeta.",
+    "quickAccessMissing": "Esta carpeta ya no existe o no está disponible.",
+    "quickAccessBoardCount_one": "{{count}} tablero",
+    "quickAccessBoardCount_other": "{{count}} tableros",
+    "settingsLabel": "Configuración"
   },
   "workspaceHome": {
     "workspaceLabel": "Espacio de trabajo",
@@ -101,7 +113,8 @@
     "saveLabel": "Guardar",
     "newBoardLabel": "Nuevo tablero",
     "newQuickboardLabel": "Nuevo tablero rápido",
-    "moreActionsLabel": "Más acciones"
+    "moreActionsLabel": "Más acciones",
+    "exportLabel": "Exportar como imagen"
   },
   "boardTitle": {
     "untitledPlaceholder": "Sin título",
@@ -151,7 +164,20 @@
     "warnLargeFilesHint": "Muestra un aviso al importar un archivo de más de 50 MB.",
     "confirmDisableWarnText": "Los archivos grandes pueden llenar tu espacio de trabajo rápidamente. ¿Estás seguro?",
     "disableWarningButton": "Deshabilitar aviso",
-    "keepWarningButton": "Mantenerlo activo"
+    "keepWarningButton": "Mantenerlo activo",
+    "themeLabel": "Tema",
+    "themeHint": "Elegí un aspecto claro u oscuro, o seguí la configuración del sistema.",
+    "themeLight": "Claro",
+    "themeDark": "Oscuro",
+    "themeSystem": "Sistema",
+    "crosshairLabel": "Color del cursor en cruz",
+    "crosshairHint": "Lo usan las herramientas de texto, formas y tinta.",
+    "crosshairDefault": "Cruz predeterminada del sistema",
+    "crosshairDefaultShort": "Predeterminado",
+    "crosshairCustom": "Color personalizado",
+    "crosshairPreview": "Pasá el mouse acá para previsualizar",
+    "quickAccessNeverAskLabel": "No ofrecer nunca agregar carpetas nuevas a Acceso rápido",
+    "quickAccessNeverAskHint": "Si está desactivado, al crear un espacio de trabajo en una carpeta que no está en Acceso rápido se te pregunta si querés agregarla."
   },
   "petalPalette": {
     "ariaLabel": "Paleta de comandos",
@@ -210,7 +236,12 @@
     "textColorDefault": "Por defecto",
     "alignLeftLabel": "Alinear a la izquierda",
     "alignCenterLabel": "Centrar",
-    "alignRightLabel": "Alinear a la derecha"
+    "alignRightLabel": "Alinear a la derecha",
+    "fontLabel": "Fuente",
+    "fontSizeLabel": "Tamaño de fuente",
+    "decreaseSizeLabel": "Reducir tamaño de fuente",
+    "increaseSizeLabel": "Aumentar tamaño de fuente",
+    "autoFitLabel": "Ajustar texto automáticamente al cuadro"
   },
   "edgeToolbar": {
     "styleLabel": "Estilo de conexión",
@@ -244,7 +275,8 @@
     "noResults": "Sin resultados"
   },
   "textNode": {
-    "placeholder": "Texto"
+    "placeholder": "Texto",
+    "resizeFitLabel": "Arrastrá para cambiar el tamaño del cuadro; el texto se adapta"
   },
   "dialogs": {
     "largeFileTitle": "Archivo grande",
@@ -263,7 +295,9 @@
     "workspaceFilter": "Espacio de trabajo Whitebloom",
     "boardFilter": "Tablero Whitebloom",
     "createWorkspaceTitle": "Crear espacio de trabajo",
-    "saveBoardTitle": "Guardar tablero"
+    "saveBoardTitle": "Guardar tablero",
+    "quickAccessPickTitle": "Agregar carpeta a Acceso rápido",
+    "exportImageTitle": "Exportar tablero como imagen"
   },
   "navigation": {
     "saveBeforeLeavingTitle": "¿Guardar cambios antes de salir?",
@@ -271,5 +305,34 @@
     "saveButton": "Guardar",
     "discardButton": "Descartar",
     "cancelButton": "Cancelar"
+  },
+  "inkToolbar": {
+    "penLabel": "Lápiz (clic otra vez para opciones)",
+    "eraserLabel": "Borrador",
+    "clearLabel": "Borrar capa de tinta",
+    "penStyleLabel": "Color y grosor del lápiz",
+    "colorLabel": "Color",
+    "customColorLabel": "Color personalizado",
+    "thicknessLabel": "Grosor"
+  },
+  "quickAccessPrompt": {
+    "title": "¿Agregar carpeta a Acceso rápido?",
+    "body": "Creaste un espacio de trabajo dentro de \"{{name}}\". Agregá esta carpeta a Acceso rápido para encontrar sus espacios de trabajo desde la pantalla de inicio.",
+    "neverAsk": "No volver a preguntar",
+    "notNow": "Ahora no",
+    "add": "Agregar a Acceso rápido"
+  },
+  "exportImage": {
+    "exportAll": "Exportar todo",
+    "exportAllHint": "Recorta a todo lo que hay en el tablero",
+    "exportZone": "Exportar zona",
+    "exportZoneHint": "Elegí una región para exportar",
+    "zoneHint": "Arrastrá las puntas para ajustar la zona, o arrastrá afuera para dibujar una nueva",
+    "exportButton": "Exportar",
+    "exporting": "Exportando…",
+    "cancelButton": "Cancelar",
+    "savedTo": "Imagen guardada en {{path}}",
+    "failed": "No se pudo exportar la imagen.",
+    "nothingToExport": "El tablero está vacío: no hay nada para exportar."
   }
 }

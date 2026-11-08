@@ -92,6 +92,16 @@
   --radius-blur-medium: 2px;
   --radius-blur-heavy: 4px;
 
+  /* Theme-aware helper tokens (dark overrides live in theme-dark.css) */
+  --color-surface-solid: #ffffff;
+  --color-hover-bg: rgba(0, 0, 0, 0.06);
+  --color-swatch-border: rgba(0, 0, 0, 0.16);
+  --color-track-bg: rgba(0, 0, 0, 0.12);
+  --color-inset-bg: rgba(0, 0, 0, 0.035);
+  --color-border-subtle: rgba(0, 0, 0, 0.1);
+  --color-grid-dot: rgba(80, 80, 80, 0.3);
+  --color-fit-outline: rgba(43, 43, 43, 0.14);
+
   --size-window-toolbar-control: 24px;
   --size-window-toolbar-segmented-inset: 1px;
 }

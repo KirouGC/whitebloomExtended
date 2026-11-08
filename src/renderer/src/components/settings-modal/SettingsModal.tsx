@@ -7,9 +7,10 @@ import AppSection from './AppSection'
 import './SettingsModal.css'
 
 type Props = {
-  name: string | undefined
-  brief: string | undefined
-  onChange: (patch: { name?: string; brief?: string }) => void
+  /** Board settings are shown only when a board is open (omit `onChange` elsewhere, e.g. the start screen). */
+  name?: string | undefined
+  brief?: string | undefined
+  onChange?: (patch: { name?: string; brief?: string }) => void
   onClose: () => void
 }
 
@@ -18,11 +19,12 @@ type Section = 'board' | 'workspace' | 'app'
 export default function SettingsModal({ name, brief, onChange, onClose }: Props) {
   const { t } = useTranslation()
   const hasWorkspace = useWorkspaceStore((s) => s.root !== null)
-  const [activeSection, setActiveSection] = useState<Section>('board')
+  const hasBoard = onChange !== undefined
+  const [activeSection, setActiveSection] = useState<Section>(hasBoard ? 'board' : 'app')
   const overlayRef = useRef<HTMLDivElement>(null)
 
   const sections: { id: Section; label: string }[] = [
-    { id: 'board', label: t('settingsModal.boardTab') },
+    ...(hasBoard ? [{ id: 'board' as Section, label: t('settingsModal.boardTab') }] : []),
     ...(hasWorkspace ? [{ id: 'workspace' as Section, label: t('settingsModal.workspaceTab') }] : []),
     { id: 'app', label: t('settingsModal.appTab') }
   ]
@@ -60,7 +62,7 @@ export default function SettingsModal({ name, brief, onChange, onClose }: Props)
         </nav>
 
         <div className="settings-modal__content">
-          {activeSection === 'board' && (
+          {activeSection === 'board' && onChange && (
             <BoardSection name={name} brief={brief} onChange={onChange} />
           )}
           {activeSection === 'workspace' && hasWorkspace && <WorkspaceSection />}

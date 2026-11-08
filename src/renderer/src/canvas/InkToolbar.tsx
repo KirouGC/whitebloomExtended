@@ -1,7 +1,168 @@
-import { Eraser, Pen, Trash2 } from 'lucide-react'
-import { CanvasToolbar, CanvasToolbarBtn, CanvasToolbarSep } from './CanvasToolbar'
+import { useEffect, useId, useRef } from 'react'
+import { useTranslation } from 'react-i18next'
+import { Eraser, Pen, Plus, Trash2 } from 'lucide-react'
+import { CanvasToolbar, CanvasToolbarBtn, CanvasToolbarSep, useCanvasToolbarPopover } from './CanvasToolbar'
+import { CanvasPopover } from './CanvasPopover'
+import { useAppSettingsStore } from '@renderer/stores/app-settings'
+import { MAX_PEN_WIDTH, MIN_PEN_WIDTH } from '../../../shared/app-settings'
+import { INK_PEN_COLORS, PEN_WIDTH_PRESETS, previewDotSize, useInkPenStyle } from './inkPen'
+import './CanvasPopover.css'
+import './InkToolbar.css'
 
 export type InkTool = 'pen' | 'eraser'
+
+// ── Pen style popover ─────────────────────────────────────────────────────────
+
+type PenStyleControlProps = {
+  popoverId: string
+}
+
+function PenStyleControl({ popoverId }: PenStyleControlProps): React.JSX.Element {
+  const { t } = useTranslation()
+  const { open, setOpen } = useCanvasToolbarPopover(popoverId)
+  const controlRef = useRef<HTMLDivElement>(null)
+  const popoverContentRef = useRef<HTMLDivElement>(null)
+  const colorInputRef = useRef<HTMLInputElement>(null)
+  const penStyle = useInkPenStyle()
+  const updatePenStyle = useAppSettingsStore((s) => s.updatePenStyle)
+
+  useEffect(() => {
+    if (!open) return
+    const handleDown = (e: MouseEvent): void => {
+      const target = e.target as Node
+      if (controlRef.current?.contains(target)) return
+      if (popoverContentRef.current?.contains(target)) return
+      setOpen(false)
+    }
+    const handleKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') setOpen(false)
+    }
+    document.addEventListener('mousedown', handleDown)
+    document.addEventListener('keydown', handleKey)
+    return () => {
+      document.removeEventListener('mousedown', handleDown)
+      document.removeEventListener('keydown', handleKey)
+    }
+  }, [open, setOpen])
+
+  const isPresetColor = INK_PEN_COLORS.some((c) => c.value === penStyle.color.toLowerCase())
+  const dot = previewDotSize(penStyle.width)
+
+  return (
+    <div className="canvas-control" ref={controlRef}>
+      <CanvasToolbarBtn
+        popoverId={popoverId}
+        active={open}
+        aria-label={t('inkToolbar.penStyleLabel')}
+        title={t('inkToolbar.penStyleLabel')}
+      >
+        <span
+          className="ink-pen-dot"
+          style={{ width: dot, height: dot, backgroundColor: penStyle.color }}
+        />
+      </CanvasToolbarBtn>
+
+      {open && (
+        <CanvasPopover anchorRef={controlRef}>
+          <div className="ink-pen-picker" ref={popoverContentRef}>
+            <div className="canvas-popover__label">{t('inkToolbar.colorLabel')}</div>
+            <div className="ink-pen-picker__colors" role="listbox" aria-label={t('inkToolbar.colorLabel')}>
+              {INK_PEN_COLORS.map((c) => {
+                const selected = penStyle.color.toLowerCase() === c.value
+                return (
+                  <button
+                    key={c.id}
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    aria-label={c.value}
+                    title={c.value}
+                    className={`ink-pen-picker__color${selected ? ' ink-pen-picker__color--selected' : ''}`}
+                    style={{ backgroundColor: c.value }}
+                    onClick={() => void updatePenStyle({ penColor: c.value })}
+                  />
+                )
+              })}
+              <button
+                type="button"
+                className={`ink-pen-picker__color ink-pen-picker__color--custom${!isPresetColor ? ' ink-pen-picker__color--selected' : ''}`}
+                style={!isPresetColor ? { backgroundColor: penStyle.color } : undefined}
+                aria-label={t('inkToolbar.customColorLabel')}
+                title={t('inkToolbar.customColorLabel')}
+                onClick={() => colorInputRef.current?.click()}
+              >
+                {isPresetColor && <Plus size={12} strokeWidth={2.2} />}
+              </button>
+              <input
+                ref={colorInputRef}
+                type="color"
+                className="ink-pen-picker__native-color"
+                value={penStyle.color.length === 7 ? penStyle.color : '#111111'}
+                onChange={(e) => void updatePenStyle({ penColor: e.target.value })}
+                tabIndex={-1}
+                aria-hidden
+              />
+            </div>
+
+            <div className="canvas-popover__sep" />
+
+            <div className="ink-pen-picker__thickness-head">
+              <span className="canvas-popover__label">{t('inkToolbar.thicknessLabel')}</span>
+              <span className="ink-pen-picker__value">{penStyle.width}</span>
+            </div>
+            <div className="ink-pen-picker__presets">
+              {PEN_WIDTH_PRESETS.map((w) => {
+                const size = previewDotSize(w, 18)
+                return (
+                  <button
+                    key={w}
+                    type="button"
+                    className={`ink-pen-picker__preset${penStyle.width === w ? ' ink-pen-picker__preset--selected' : ''}`}
+                    aria-label={`${t('inkToolbar.thicknessLabel')} ${w}`}
+                    title={String(w)}
+                    onClick={() => void updatePenStyle({ penWidth: w })}
+                  >
+                    <span style={{ width: size, height: size, backgroundColor: penStyle.color }} />
+                  </button>
+                )
+              })}
+            </div>
+            <input
+              type="range"
+              className="ink-pen-picker__slider"
+              min={MIN_PEN_WIDTH}
+              max={MAX_PEN_WIDTH}
+              step={0.5}
+              value={penStyle.width}
+              aria-label={t('inkToolbar.thicknessLabel')}
+              // The popover shell prevents default on mousedown (to keep editor focus);
+              // stop here so the native range drag still works.
+              onMouseDown={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
+              style={{ ['--ink-slider-fill' as string]: `${((penStyle.width - MIN_PEN_WIDTH) / (MAX_PEN_WIDTH - MIN_PEN_WIDTH)) * 100}%` }}
+              onChange={(e) => void updatePenStyle({ penWidth: Number(e.target.value) })}
+            />
+
+            <div className="ink-pen-picker__preview" aria-hidden>
+              <svg viewBox="0 0 168 40" width="168" height="40">
+                <path
+                  d="M10 28 C 40 6, 62 6, 84 20 S 128 34, 158 12"
+                  fill="none"
+                  stroke={penStyle.color}
+                  strokeWidth={Math.min(penStyle.width, 24)}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+          </div>
+        </CanvasPopover>
+      )}
+    </div>
+  )
+}
+
+// ── Toolbar ───────────────────────────────────────────────────────────────────
 
 type InkToolbarProps = {
   activeTool: InkTool
@@ -10,33 +171,76 @@ type InkToolbarProps = {
   onMouseDown?: React.MouseEventHandler<HTMLDivElement>
 }
 
-export function InkToolbar({ activeTool, onToolChange, onClearLayer, onMouseDown }: InkToolbarProps) {
+export function InkToolbar(props: InkToolbarProps): React.JSX.Element {
   return (
-    <CanvasToolbar onMouseDown={onMouseDown}>
+    <CanvasToolbar onMouseDown={props.onMouseDown}>
+      <InkToolbarContent {...props} />
+    </CanvasToolbar>
+  )
+}
+
+function InkToolbarContent({ activeTool, onToolChange, onClearLayer }: InkToolbarProps): React.JSX.Element {
+  const { t } = useTranslation()
+  const popoverId = useId()
+  const { open, setOpen } = useCanvasToolbarPopover(popoverId)
+  const penStyle = useInkPenStyle()
+  const updatePenStyle = useAppSettingsStore((s) => s.updatePenStyle)
+
+  // Quick colors inline in the tray (Whiteboard shows several pens side by side).
+  const quickColors = INK_PEN_COLORS.filter((c) =>
+    ['black', 'red', 'blue', 'green', 'yellow'].includes(c.id)
+  )
+
+  return (
+    <>
       <CanvasToolbarBtn
         active={activeTool === 'pen'}
-        onClick={() => onToolChange('pen')}
-        aria-label="Pen"
-        title="Pen"
+        preserveOpenPopover
+        onClick={() => {
+          // Like Whiteboard: tapping the already-selected pen opens its settings.
+          if (activeTool === 'pen') setOpen(!open)
+          else onToolChange('pen')
+        }}
+        aria-label={t('inkToolbar.penLabel')}
+        title={t('inkToolbar.penLabel')}
       >
         <Pen size={14} strokeWidth={1.8} />
       </CanvasToolbarBtn>
       <CanvasToolbarBtn
         active={activeTool === 'eraser'}
         onClick={() => onToolChange('eraser')}
-        aria-label="Eraser"
-        title="Eraser"
+        aria-label={t('inkToolbar.eraserLabel')}
+        title={t('inkToolbar.eraserLabel')}
       >
         <Eraser size={14} strokeWidth={1.8} />
       </CanvasToolbarBtn>
       <CanvasToolbarSep />
+      {quickColors.map((c) => {
+        const selected = penStyle.color.toLowerCase() === c.value
+        return (
+          <CanvasToolbarBtn
+            key={c.id}
+            active={selected && activeTool === 'pen'}
+            aria-label={c.value}
+            title={c.value}
+            onClick={() => {
+              void updatePenStyle({ penColor: c.value })
+              onToolChange('pen')
+            }}
+          >
+            <span className="ink-quick-color" style={{ backgroundColor: c.value }} />
+          </CanvasToolbarBtn>
+        )
+      })}
+      <PenStyleControl popoverId={popoverId} />
+      <CanvasToolbarSep />
       <CanvasToolbarBtn
         onClick={onClearLayer}
-        aria-label="Clear ink layer"
-        title="Clear ink layer"
+        aria-label={t('inkToolbar.clearLabel')}
+        title={t('inkToolbar.clearLabel')}
       >
         <Trash2 size={14} strokeWidth={1.8} />
       </CanvasToolbarBtn>
-    </CanvasToolbar>
+    </>
   )
 }

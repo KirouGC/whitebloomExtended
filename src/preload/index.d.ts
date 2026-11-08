@@ -2,6 +2,11 @@ import { ElectronAPI } from '@electron-toolkit/preload'
 import type { AppSettings } from '../shared/app-settings'
 import type { ArrangementsMaterial, GardenState } from '../shared/arrangements'
 import type { InkAcetate, InkSurfaceBinding, InkStroke } from '../shared/ink'
+import type {
+  ExportPickPathResult,
+  QuickAccessListResult,
+  QuickAccessPickFolderResult
+} from '../shared/quick-access'
 
 type WorkspaceConfig = {
   version: number
@@ -324,6 +329,10 @@ declare global {
         fileName: string | null
         relativePath: string | null
       }>
+      pickQuickAccessFolder: () => Promise<QuickAccessPickFolderResult>
+      listQuickAccessWorkspaces: (folderPath: string) => Promise<QuickAccessListResult>
+      pickExportImagePath: (suggestedName: string) => Promise<ExportPickPathResult>
+      writeExportImage: (filePath: string, bytes: Uint8Array) => Promise<{ ok: boolean }>
     }
   }
 }

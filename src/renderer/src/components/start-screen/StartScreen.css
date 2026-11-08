@@ -243,3 +243,220 @@
   cursor: default;
   opacity: 0.4;
 }
+
+/* ── Active nav item (Recently / selected Quick Access folder) ───────── */
+
+.start-screen__action--active,
+.start-screen__qa-item--active .start-screen__qa-folder {
+  background: rgba(var(--color-accent-blue-rgb), 0.07);
+  border-left-color: var(--color-accent-blue);
+}
+
+.start-screen__action--active .start-screen__action-icon,
+.start-screen__qa-item--active .start-screen__action-icon {
+  color: var(--color-accent-blue);
+}
+
+/* ── Quick Access ─────────────────────────────────────────────────────── */
+
+.start-screen__qa-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-top: 14px;
+}
+
+.start-screen__qa-toggle {
+  flex: 1;
+  padding-right: 44px;
+}
+
+.start-screen__qa-chevron {
+  transition: transform 120ms ease, color 80ms ease;
+}
+
+.start-screen__qa-chevron--open {
+  transform: rotate(90deg);
+}
+
+.start-screen__qa-add {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--radius-border-inner);
+  background: transparent;
+  color: var(--color-muted-fg);
+  cursor: pointer;
+  transition: background 80ms ease, color 80ms ease, border-color 80ms ease;
+}
+
+.start-screen__qa-add:hover {
+  background: var(--color-hover-bg);
+  border-color: var(--color-border-subtle);
+  color: var(--color-accent-blue);
+}
+
+.start-screen__qa-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 40vh;
+  overflow-y: auto;
+}
+
+.start-screen__qa-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.start-screen__qa-folder {
+  padding-left: 40px;
+  padding-right: 36px;
+  font-size: 0.82rem;
+  letter-spacing: 0.4px;
+  min-width: 0;
+}
+
+.start-screen__qa-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.start-screen__qa-remove {
+  position: absolute;
+  right: 12px;
+  width: 20px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: var(--radius-border-inner);
+  background: transparent;
+  color: var(--color-muted-fg);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 80ms ease, background 80ms ease, color 80ms ease;
+}
+
+.start-screen__qa-item:hover .start-screen__qa-remove,
+.start-screen__qa-remove:focus-visible {
+  opacity: 1;
+}
+
+.start-screen__qa-remove:hover {
+  background: rgba(var(--color-accent-red-rgb), 0.1);
+  color: var(--color-accent-red);
+}
+
+.start-screen__qa-empty {
+  margin: 4px 20px 0 40px;
+  font-size: 0.76rem;
+  line-height: 1.4;
+  color: var(--color-muted-fg);
+}
+
+/* ── Right panel extras ───────────────────────────────────────────────── */
+
+.start-screen__recent {
+  position: relative;
+}
+
+.start-screen__settings {
+  position: absolute;
+  top: 18px;
+  right: 20px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-border-frame);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--color-muted-fg);
+  cursor: pointer;
+  transition: background 80ms ease, color 80ms ease, border-color 80ms ease, transform 200ms ease;
+}
+
+.start-screen__settings:hover {
+  background: var(--color-hover-bg);
+  border-color: var(--color-border-subtle);
+  color: var(--color-primary-fg);
+}
+
+.start-screen__settings:hover svg {
+  transform: rotate(30deg);
+  transition: transform 200ms ease;
+}
+
+.start-screen__folder-path {
+  margin: -10px 0 18px;
+  font-size: 0.76rem;
+  color: var(--color-muted-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.start-screen__board-preview--workspace {
+  background: linear-gradient(180deg, rgba(var(--color-accent-blue-rgb), 0.05), transparent);
+}
+
+.start-screen__notice {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-border-frame);
+  background: rgba(var(--color-accent-red-rgb), 0.08);
+  color: var(--color-accent-red);
+  font-size: 0.82rem;
+}
+
+.start-screen__notice-action {
+  border: 1px solid rgba(var(--color-accent-red-rgb), 0.3);
+  border-radius: var(--radius-border-inner);
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.78rem;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.start-screen__notice-action:hover {
+  background: rgba(var(--color-accent-red-rgb), 0.1);
+}
+
+[data-theme='dark'] .start-screen__qa-item--active .start-screen__qa-folder,
+[data-theme='dark'] .start-screen__action--active {
+  background: rgba(var(--color-accent-blue-rgb), 0.12);
+}
+
+/* ── "Add folder to Quick Access?" prompt ─────────────────────────────── */
+
+.quick-access-prompt__path {
+  margin: 0 0 12px;
+  padding: 6px 8px;
+  border-radius: var(--radius-border-inner);
+  background: var(--color-inset-bg);
+  font-size: 0.76rem;
+  color: var(--color-secondary-fg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.quick-access-prompt__never {
+  margin-bottom: 14px;
+}

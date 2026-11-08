@@ -4,6 +4,7 @@ import { createMainWindow } from './create-window'
 import { initializeMainI18n } from './i18n'
 import { registerAppIpc } from './ipc/register-app-ipc'
 import { registerBoardIpc } from './ipc/register-board-ipc'
+import { registerExtrasIpc } from './ipc/register-extras-ipc'
 import {
   registerResourceProtocols,
   registerResourceSchemes
@@ -19,7 +20,8 @@ registerResourceSchemes()
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
-  electronApp.setAppUserModelId('com.electron')
+  // Must match electron-builder's appId so Windows groups the taskbar icon correctly.
+  electronApp.setAppUserModelId('ar.whitebloom.app')
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
@@ -58,6 +60,7 @@ app.whenReady().then(async () => {
   registerResourceProtocols(context)
   registerBoardIpc(context)
   registerAppIpc(context)
+  registerExtrasIpc()
   initializeWebBloomViewHost()
   createMainWindow()
 

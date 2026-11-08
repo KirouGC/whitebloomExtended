@@ -224,3 +224,34 @@
   font-size: 0.9em;
   font-weight: 500;
 }
+
+/* ── Auto-fit mode: text scales to fill the box's own area ─────────── */
+
+.text-node--fit {
+  /* Dashed outline hints that the box (not the text) defines the size. */
+  border-style: dashed;
+  border-color: var(--color-fit-outline, rgba(43, 43, 43, 0.14));
+}
+
+.text-node--fit.text-node--selected {
+  border-style: solid;
+  border-color: var(--color-accent-blue);
+}
+
+.text-node--fit .text-node__input {
+  min-width: 0;
+}
+
+.text-node__fit-handle {
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  background: var(--color-surface-solid, #fff);
+  border: 1.5px solid var(--color-accent-blue);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.2);
+  cursor: nwse-resize;
+  z-index: 6;
+}

@@ -1,0 +1,494 @@
+/* ─────────────────────────────────────────────────────────────────────────────
+   Dark theme
+   Activated by <html data-theme="dark"> (see theme/appearance.ts).
+   1. Token overrides: everything built on the semantic tokens adapts for free.
+   2. Surface overrides: components that hardcode light glass/paper colors.
+   Selectors are prefixed with [data-theme='dark'] so they win over the
+   single-class component rules regardless of stylesheet order.
+   ───────────────────────────────────────────────────────────────────────── */
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  --color-primary-bg: #1b1c1f;
+  --color-primary-fg: #e6e7ea;
+  --color-secondary-fg: #a8abb3;
+  --color-muted-fg: #7b7f88;
+  --color-bg: #1b1c1f;
+  --color-surface: #2a2c31;
+  --color-border: rgba(255, 255, 255, 0.14);
+
+  --color-surface-solid: #2a2c31;
+  --color-hover-bg: rgba(255, 255, 255, 0.08);
+  --color-swatch-border: rgba(255, 255, 255, 0.22);
+  --color-track-bg: rgba(255, 255, 255, 0.16);
+  --color-inset-bg: rgba(255, 255, 255, 0.05);
+  --color-border-subtle: rgba(255, 255, 255, 0.12);
+  --color-grid-dot: rgba(200, 200, 200, 0.22);
+  --color-fit-outline: rgba(255, 255, 255, 0.16);
+
+  /* Shared glass surface (toolbars, popovers, bars) */
+  --glass-bg: linear-gradient(180deg, rgba(46, 48, 54, 0.86), rgba(36, 38, 43, 0.8));
+  --glass-border: rgba(255, 255, 255, 0.09);
+  --glass-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --panel-bg: linear-gradient(160deg, rgba(40, 42, 47, 0.98), rgba(32, 34, 38, 0.97));
+  --field-bg: rgba(255, 255, 255, 0.06);
+  --tile-bg: rgba(42, 44, 49, 0.92);
+
+  /* React Flow chrome */
+  --xy-background-color: var(--color-primary-bg);
+  --xy-minimap-background-color: #232428;
+  --xy-minimap-mask-background-color: rgba(0, 0, 0, 0.45);
+  --xy-minimap-node-background-color: #3a3c42;
+  --xy-minimap-node-stroke-color: transparent;
+  --xy-controls-button-background-color: #2a2c31;
+  --xy-controls-button-background-color-hover: #34363c;
+  --xy-controls-button-color: var(--color-primary-fg);
+  --xy-controls-button-border-color: rgba(255, 255, 255, 0.1);
+  --xy-node-color: var(--color-primary-fg);
+  --xy-selection-background-color: rgba(30, 135, 255, 0.12);
+  --xy-attribution-background-color: transparent;
+}
+
+/* Generic hover/press tints: black-on-light becomes white-on-dark. */
+[data-theme='dark'] .canvas-toolbar__btn:hover,
+[data-theme='dark'] .canvas-color-picker__option:hover,
+[data-theme='dark'] .board-context-bar__identity--workspace:hover,
+[data-theme='dark'] .board-context-bar__name:hover,
+[data-theme='dark'] .settings-modal__nav-item:hover,
+[data-theme='dark'] .settings-modal__close:hover,
+[data-theme='dark'] .petal-shelf-item:hover:not(:disabled),
+[data-theme='dark'] .petal-shelf-zoom__trigger:hover,
+[data-theme='dark'] .petal-shelf-zoom__preset:hover,
+[data-theme='dark'] .start-screen__action:hover:not(:disabled),
+[data-theme='dark'] .workspace-home__action:hover:not(:disabled),
+[data-theme='dark'] .materials-window__nav-row:hover,
+[data-theme='dark'] .materials-window__set-row:hover,
+[data-theme='dark'] .materials-window__bin-heading:hover,
+[data-theme='dark'] .materials-window__material-row:hover,
+[data-theme='dark'] .material-item:hover .material-item__icon-wrap,
+[data-theme='dark'] .project-finder__sidebar-item:hover,
+[data-theme='dark'] .bloom-modal__error-close:hover {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme='dark'] .canvas-toolbar__btn:active,
+[data-theme='dark'] .petal-shelf-item:active:not(:disabled),
+[data-theme='dark'] .petal-shelf-zoom__trigger:active,
+[data-theme='dark'] .petal-shelf-zoom__trigger--open,
+[data-theme='dark'] .petal-shelf-zoom__preset:active {
+  background: rgba(255, 255, 255, 0.11);
+}
+
+/* Separators / dividers */
+[data-theme='dark'] .canvas-toolbar__sep,
+[data-theme='dark'] .canvas-popover__sep,
+[data-theme='dark'] .board-context-bar__divider {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* ── Glass toolbars, bars and popovers ─────────────────────────────────── */
+
+[data-theme='dark'] .canvas-toolbar,
+[data-theme='dark'] .canvas-popover,
+[data-theme='dark'] .board-context-bar,
+[data-theme='dark'] .board-title,
+[data-theme='dark'] .petal-menu,
+[data-theme='dark'] .sb-canvas-toolbar,
+[data-theme='dark'] .canvas-recording-indicator {
+  background: var(--glass-bg);
+  border-color: var(--glass-border);
+  box-shadow: var(--glass-shadow);
+}
+
+[data-theme='dark'] .canvas-toolbar__swatch,
+[data-theme='dark'] .canvas-color-picker__swatch,
+[data-theme='dark'] .canvas-color-picker__custom-input {
+  border-color: var(--color-swatch-border);
+}
+
+[data-theme='dark'] .canvas-color-picker__swatch--selected {
+  box-shadow: 0 0 0 2px var(--color-surface-solid), 0 0 0 3.5px rgba(255, 255, 255, 0.7);
+}
+
+/* Main tool dock (components/canvas-toolbar) */
+[data-theme='dark'] .canvas-toolbar__button,
+[data-theme='dark'] .canvas-toolbar__button--active {
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme='dark'] .canvas-toolbar__button:hover,
+[data-theme='dark'] .board-title__settings-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+[data-theme='dark'] .canvas-toolbar__button:active,
+[data-theme='dark'] .board-title__settings-btn:active {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+[data-theme='dark'] .canvas-toolbar__button--toggle-active::before {
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme='dark'] .board-context-bar__name-input,
+[data-theme='dark'] .board-title__input {
+  background: var(--field-bg);
+  color: var(--color-primary-fg);
+}
+
+[data-theme='dark'] .canvas-recording-indicator__mic-off {
+  color: var(--color-secondary-fg);
+}
+
+/* ── Command palette & menus ───────────────────────────────────────────── */
+
+[data-theme='dark'] .petal-palette,
+[data-theme='dark'] .petal-palette--meta {
+  background: linear-gradient(180deg, rgba(44, 46, 52, 0.98), rgba(34, 36, 41, 0.95));
+  border-color: rgba(255, 255, 255, 0.09);
+  box-shadow: 0 22px 52px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+[data-theme='dark'] .petal-palette__backdrop--busy {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+[data-theme='dark'] .petal-palette__search,
+[data-theme='dark'] .petal-palette__submit-wrap,
+[data-theme='dark'] .petal-island__header,
+[data-theme='dark'] .start-screen__board-preview,
+[data-theme='dark'] .workspace-home__board-preview,
+[data-theme='dark'] .workspace-home__identity {
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme='dark'] .petal-palette__item-hint {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme='dark'] .petal-palette__busy-progress {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme='dark'] .petal-palette input,
+[data-theme='dark'] .petal-toolbar-search {
+  color: var(--color-primary-fg);
+}
+
+[data-theme='dark'] .petal-menu__separator {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.03));
+}
+
+/* ── Petal primitives ──────────────────────────────────────────────────── */
+
+[data-theme='dark'] .petal-panel__overlay,
+[data-theme='dark'] .settings-modal__overlay,
+[data-theme='dark'] .project-finder__overlay {
+  background: rgba(10, 11, 13, 0.45);
+}
+
+[data-theme='dark'] .petal-panel {
+  background: #26282d;
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+[data-theme='dark'] .petal-island {
+  background: rgba(40, 42, 47, 0.92);
+  border-color: rgba(255, 255, 255, 0.07);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+[data-theme='dark'] .petal-button {
+  background: rgba(48, 50, 56, 0.95);
+  border-color: rgba(255, 255, 255, 0.06);
+  color: var(--color-primary-fg);
+  box-shadow: 5px 5px 12px rgba(0, 0, 0, 0.45), -4px -4px 10px rgba(255, 255, 255, 0.03);
+}
+
+[data-theme='dark'] .petal-button:hover:not(:disabled) {
+  background: rgba(58, 60, 67, 1);
+}
+
+[data-theme='dark'] .petal-button:active {
+  box-shadow: inset 3px 3px 10px rgba(0, 0, 0, 0.5), inset -3px -3px 8px rgba(255, 255, 255, 0.03);
+}
+
+[data-theme='dark'] .petal-button--primary {
+  background: var(--color-accent-blue);
+  color: #fff;
+}
+
+[data-theme='dark'] .petal-field__input,
+[data-theme='dark'] .settings-select,
+[data-theme='dark'] .settings-confirm__btn,
+[data-theme='dark'] .project-finder__name-input,
+[data-theme='dark'] .petal-toolbar-search {
+  background: var(--field-bg);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: var(--color-primary-fg);
+}
+
+[data-theme='dark'] .settings-select:hover,
+[data-theme='dark'] .settings-confirm__btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+[data-theme='dark'] .settings-select option {
+  background: #26282d;
+  color: var(--color-primary-fg);
+}
+
+[data-theme='dark'] .petal-icon-badge--selected {
+  box-shadow: 0 0 0 2.5px var(--badge-accent), 0 0 0 4.5px rgba(255, 255, 255, 0.1), 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* Neumorphic window buttons */
+[data-theme='dark'] .petal-control-button,
+[data-theme='dark'] .petal-window-toolbar-button,
+[data-theme='dark'] .petal-window-toolbar-segmented {
+  background: #2c2e33;
+  color: var(--color-primary-fg);
+  box-shadow: -3px -3px 7px 0 rgba(255, 255, 255, 0.03), 4px 4px 8px 0 rgba(0, 0, 0, 0.45);
+}
+
+[data-theme='dark'] .petal-control-button:active,
+[data-theme='dark'] .petal-window-toolbar-button:active,
+[data-theme='dark'] .petal-window-toolbar-button--active,
+[data-theme='dark'] .petal-window-toolbar-segmented__item--active {
+  box-shadow: inset -2px -2px 6px 0 rgba(255, 255, 255, 0.03), inset 3px 3px 8px 0 rgba(0, 0, 0, 0.5);
+}
+
+/* Shelf */
+[data-theme='dark'] .petal-shelf {
+  border-color: rgba(255, 255, 255, 0.07);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme='dark'] .petal-shelf-zoom__popover {
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme='dark'] .petal-shelf-zoom__slider {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+[data-theme='dark'] .petal-shelf-zoom__preset,
+[data-theme='dark'] .petal-shelf-zoom__preset--active {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* ── Windows: settings, mica, materials, project finder ────────────────── */
+
+[data-theme='dark'] .settings-modal {
+  background: var(--panel-bg);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+[data-theme='dark'] .settings-modal__sidebar {
+  background: rgba(255, 255, 255, 0.025);
+  border-color: rgba(255, 255, 255, 0.07);
+}
+
+[data-theme='dark'] .settings-modal__nav-item--active {
+  background: rgba(255, 255, 255, 0.09);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme='dark'] .settings-radio-group {
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme='dark'] .settings-radio {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+[data-theme='dark'] .settings-radio:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+[data-theme='dark'] .mica-window {
+  background: rgba(36, 38, 42, 0.97);
+  border-color: rgba(255, 255, 255, 0.09);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+[data-theme='dark'] .mica-window__titlebar {
+  background: rgba(40, 42, 47, 0.98);
+  box-shadow: inset 0 -1px 0 rgba(255, 255, 255, 0.06);
+}
+
+[data-theme='dark'] .mica-window__sidebar,
+[data-theme='dark'] .materials-window .mica-window__sidebar {
+  background: rgba(255, 255, 255, 0.025);
+  border-color: rgba(255, 255, 255, 0.07);
+}
+
+[data-theme='dark'] .materials-window__nav-count,
+[data-theme='dark'] .materials-window__bin-count,
+[data-theme='dark'] .materials-window__material-icon-placeholder,
+[data-theme='dark'] .material-item__icon-placeholder {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme='dark'] .materials-window__drag-ghost-stack::before,
+[data-theme='dark'] .materials-window__drag-ghost-stack::after,
+[data-theme='dark'] .materials-window__drag-ghost-card {
+  background: linear-gradient(180deg, rgba(48, 50, 56, 0.98), rgba(38, 40, 45, 0.97));
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+[data-theme='dark'] .project-finder__content {
+  background:
+    radial-gradient(circle at top right, rgba(var(--color-accent-blue-rgb), 0.1), transparent 34%),
+    linear-gradient(180deg, rgba(36, 38, 42, 0.98), rgba(30, 32, 36, 0.97));
+}
+
+[data-theme='dark'] .project-finder__toolbar-button,
+[data-theme='dark'] .project-finder__pathbar,
+[data-theme='dark'] .project-finder__item-icon {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  color: var(--color-primary-fg);
+}
+
+[data-theme='dark'] .project-finder__item:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* ── Start screen / workspace home tiles ───────────────────────────────── */
+
+[data-theme='dark'] .start-screen__board-tile,
+[data-theme='dark'] .workspace-home__board-tile {
+  background: var(--tile-bg);
+  border-color: rgba(255, 255, 255, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme='dark'] .start-screen__board-tile:hover,
+[data-theme='dark'] .workspace-home__board-tile:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+
+[data-theme='dark'] .workspace-home__board-tile--new:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+[data-theme='dark'] .workspace-home__board-tile--new .workspace-home__board-preview {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+[data-theme='dark'] .start-screen__board-discard,
+[data-theme='dark'] .workspace-home__board-discard {
+  background: rgba(44, 46, 52, 0.95);
+}
+
+[data-theme='dark'] .start-screen__board-discard:hover:not(:disabled),
+[data-theme='dark'] .workspace-home__board-discard:hover:not(:disabled) {
+  background: rgba(80, 30, 42, 0.95);
+}
+
+/* ── Canvas nodes ──────────────────────────────────────────────────────── */
+
+[data-theme='dark'] .text-node {
+  text-shadow: none;
+}
+
+[data-theme='dark'] .text-node__resize-cue,
+[data-theme='dark'] .node-resize-handles__handle {
+  background: #2a2c31;
+}
+
+[data-theme='dark'] .node-resize-handles__handle {
+  border-color: #d0d2d8;
+}
+
+[data-theme='dark'] .text-node .tn-code-block,
+[data-theme='dark'] .text-node .tn-inline-code {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme='dark'] .cluster-node {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(40, 42, 47, 0.35);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 2px 12px rgba(0, 0, 0, 0.3);
+}
+
+[data-theme='dark'] .cluster-node--selected {
+  border-color: rgba(var(--cluster-color-rgb), 0.5);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 2px 12px rgba(0, 0, 0, 0.3), 0 0 0 2px rgba(var(--cluster-color-rgb), 0.22);
+}
+
+[data-theme='dark'] .cluster-node__label-input {
+  background: rgba(30, 32, 36, 0.9);
+  color: var(--color-primary-fg);
+}
+
+[data-theme='dark'] .cluster-node__indicator {
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme='dark'] .board-bloom-node__preview {
+  border-color: #2a2c31;
+}
+
+[data-theme='dark'] .fw-node__card,
+[data-theme='dark'] .sbn-root {
+  background: rgba(40, 42, 47, 0.92);
+  color: var(--color-primary-fg);
+}
+
+[data-theme='dark'] .wb-edge-label-input {
+  color: var(--color-primary-fg);
+}
+
+/* React Flow minimap / controls frames */
+[data-theme='dark'] .react-flow__minimap {
+  border-radius: var(--radius-border-frame);
+  overflow: hidden;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+}
+
+/* ── PDF editor (the page itself stays paper-white, like a real document) ─ */
+
+[data-theme='dark'] .pdf-editor {
+  background: #17181b;
+}
+
+[data-theme='dark'] .pdf-editor__sidebar {
+  background: linear-gradient(180deg, rgba(40, 42, 47, 0.9), rgba(34, 36, 41, 0.86));
+  border-color: rgba(255, 255, 255, 0.07);
+}
+
+[data-theme='dark'] .pdf-editor__thumbnail-frame {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme='dark'] .pdf-editor__thumbnail-placeholder,
+[data-theme='dark'] .pdf-editor__page-ghost {
+  background: linear-gradient(180deg, rgba(52, 54, 60, 1), rgba(44, 46, 52, 1));
+}
+
+[data-theme='dark'] .pdf-editor__page-shell {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+[data-theme='dark'] .pdf-editor__page-canvas {
+  box-shadow: 0 24px 40px rgba(0, 0, 0, 0.45), 0 6px 14px rgba(0, 0, 0, 0.35);
+}
+
+/* Native scrollbars follow the theme */
+[data-theme='dark'] ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 999px;
+}

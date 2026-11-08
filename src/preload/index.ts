@@ -3,6 +3,11 @@ import { electronAPI } from '@electron-toolkit/preload'
 import type { AppSettings } from '../shared/app-settings'
 import type { ArrangementsMaterial, GardenState } from '../shared/arrangements'
 import type { InkAcetate, InkSurfaceBinding, InkStroke } from '../shared/ink'
+import type {
+  ExportPickPathResult,
+  QuickAccessListResult,
+  QuickAccessPickFolderResult
+} from '../shared/quick-access'
 
 type WorkspaceConfig = {
   version: number
@@ -363,7 +368,15 @@ const api = {
     filePath: string | null
     fileName: string | null
     relativePath: string | null
-  }> => ipcRenderer.invoke('recording:save', workspaceRoot, requestedName, bytes)
+  }> => ipcRenderer.invoke('recording:save', workspaceRoot, requestedName, bytes),
+  pickQuickAccessFolder: (): Promise<QuickAccessPickFolderResult> =>
+    ipcRenderer.invoke('quick-access:pick-folder'),
+  listQuickAccessWorkspaces: (folderPath: string): Promise<QuickAccessListResult> =>
+    ipcRenderer.invoke('quick-access:list-workspaces', folderPath),
+  pickExportImagePath: (suggestedName: string): Promise<ExportPickPathResult> =>
+    ipcRenderer.invoke('export:pick-image-path', suggestedName),
+  writeExportImage: (filePath: string, bytes: Uint8Array): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke('export:write-image', filePath, bytes)
 }
 
 if (process.contextIsolated) {

@@ -1,4 +1,4 @@
-import { File, FilePlus, Home, MoreHorizontal, Save, Zap } from 'lucide-react'
+import { File, FilePlus, Home, MoreHorizontal, Save, Share, Zap } from 'lucide-react'
 import { useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { PetalToolbarButton } from '../petal'
@@ -15,6 +15,8 @@ type BoardContextBarProps = {
   onGoHome: () => void
   onGoToWorkspaceHome: () => void
   onNewBoard: () => void
+  /** Opens the export menu (Export all / Export area) anchored below the button. */
+  onExport?: (anchor: { x: number; y: number }) => void
   onOverflow: (anchor: { x: number; y: number }) => void
 }
 
@@ -34,6 +36,7 @@ export default function BoardContextBar({
   onGoHome,
   onGoToWorkspaceHome,
   onNewBoard,
+  onExport,
   onOverflow
 }: BoardContextBarProps) {
   const { t } = useTranslation()
@@ -42,6 +45,7 @@ export default function BoardContextBar({
   const [draft, setDraft] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const overflowRef = useRef<HTMLButtonElement>(null)
+  const exportRef = useRef<HTMLButtonElement>(null)
 
   const displayName = name?.trim() || t('boardContextBar.untitledPlaceholder')
   const isUntitled = !name?.trim()
@@ -139,6 +143,18 @@ export default function BoardContextBar({
         onClick={onNewBoard}
       />
 
+      {/* Export — image of the whole board or a selected area */}
+      {onExport ? (
+        <PetalToolbarButton
+          ref={exportRef}
+          icon={<Share size={15} strokeWidth={2} />}
+          label={t('boardContextBar.exportLabel')}
+          onClick={() => {
+            const rect = exportRef.current?.getBoundingClientRect()
+            if (rect) onExport({ x: rect.left, y: rect.bottom + 6 })
+          }}
+        />
+      ) : null}
       {/* Overflow — opens PetalMenu anchored to this button */}
       <PetalToolbarButton
         ref={overflowRef}

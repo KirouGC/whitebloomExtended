@@ -1,4 +1,5 @@
 @import "./base.css";
+@import "./theme-dark.css";
 
 * {
   margin: 0;

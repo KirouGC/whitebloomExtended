@@ -25,6 +25,7 @@ import { createLogger } from '../../../../shared/logger'
 import { createPdfCommandContext, executeCommandById, WHITEBLOOM_COMMAND_IDS } from '../../commands'
 import { useHistoryStore } from '../../history/store'
 import { InkToolbar } from '../../canvas/InkToolbar'
+import { useInkPenStyle } from '../../canvas/inkPen'
 import type { InkTool } from '../../canvas/InkToolbar'
 import { PdfAcetateCanvas } from './PdfAcetateCanvas'
 import { PdfInkOverlay } from './PdfInkOverlay'
@@ -486,6 +487,7 @@ export function PdfEditor({ resource, workspaceRoot }: BudEditorProps): React.JS
   const [acetateVisible, setAcetateVisible] = useState(true)
   const [acetateStrokes, setAcetateStrokes] = useState<PdfInkStroke[]>([])
   const [activeInkTool, setActiveInkTool] = useState<InkTool>('pen')
+  const inkPenStyle = useInkPenStyle()
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [viewMode, setViewMode] = useState<ViewMode>('single-continuous')
   const [spreadLead, setSpreadLead] = useState<SpreadLead>('odd')
@@ -1537,6 +1539,7 @@ export function PdfEditor({ resource, workspaceRoot }: BudEditorProps): React.JS
               viewportRef={scrollViewportRef}
               active={activeTool === 'ink'}
               activeTool={activeInkTool}
+              penStyle={inkPenStyle}
               strokes={acetateStrokes}
               onTransfer={(stroke) => {
                 void runPdfCommand(WHITEBLOOM_COMMAND_IDS.canvas.inkAppendStroke, {
