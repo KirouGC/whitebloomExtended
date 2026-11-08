@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useViewport, useReactFlow } from '@xyflow/react'
 import { getStroke } from 'perfect-freehand'
 import type { InkBoardWorldSample, InkStroke } from '../../../shared/ink'
@@ -10,7 +10,7 @@ import type { InkTool } from './InkToolbar'
 import { displayInkColor, useResolvedTheme } from '@renderer/theme/appearance'
 import { BOARD_MAX_ZOOM, BOARD_MIN_ZOOM } from './zoomLimits'
 import { useAppSettingsStore } from '@renderer/stores/app-settings'
-import { strokeOutlineOptions, strokeUsesPressure } from './inkStrokeOptions'
+import { LIVE_STREAMLINE, strokeOutlineOptions, strokeStreamline, strokeUsesPressure } from './inkStrokeOptions'
 import './InkOverlay.css'
 
 const ERASER_SCREEN_RADIUS = 20
@@ -39,6 +39,15 @@ type InkOverlayProps = {
 }
 
 const NO_SELECTION: ReadonlySet<string> = new Set()
+
+/**
+ * The live-ink canvas uses a desynchronized (low-latency) 2D context: drawing goes
+ * to screen without waiting for the compositor's next frame. Must be the first
+ * getContext call on that canvas, so every access goes through here.
+ */
+function getGlassContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D | null {
+  return canvas.getContext('2d', { desynchronized: true }) as CanvasRenderingContext2D | null
+}
 
 function isLightHex(hex: string): boolean {
   const m = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex)
@@ -72,7 +81,7 @@ function getCachedStrokePath(stroke: BoardInkStroke): CachedStrokePath | null {
   const pressure = strokeUsesPressure(stroke.dynamics)
   const outline = getStroke(
     (stroke.samples as InkBoardWorldSample[]).map((sample) => [sample.x, sample.y, pressure ? clampPressure(sample.pressure) : DEFAULT_PRESSURE]),
-    strokeOutlineOptions(stroke.style.width, pressure)
+    strokeOutlineOptions(stroke.style.width, pressure, strokeStreamline(stroke.dynamics))
   )
   if (outline.length < 2) return null
   const path = new Path2D()
@@ -155,14 +164,15 @@ function buildStrokeOutline(
   samples: InkBoardWorldSample[],
   viewport: { x: number; y: number; zoom: number },
   width: number,
-  pressure = true
+  pressure = true,
+  streamline = LIVE_STREAMLINE
 ): Array<[number, number]> {
   const points: StrokePoint[] = samples.map((sample) => {
     const [x, y] = worldToScreenPoint(sample, viewport)
     return [x, y, pressure ? clampPressure(sample.pressure) : DEFAULT_PRESSURE]
   })
 
-  return getStroke(points, strokeOutlineOptions(width * viewport.zoom, pressure))
+  return getStroke(points, strokeOutlineOptions(width * viewport.zoom, pressure, streamline))
 }
 
 function makeSample(event: PointerEvent, viewport: { x: number; y: number; zoom: number }, bounds: DOMRect): InkBoardWorldSample {
@@ -216,17 +226,40 @@ export function InkOverlay({
   useEffect(() => { setViewportRef.current = setViewport }, [setViewport])
   useEffect(() => { getViewportRef.current = getViewport }, [getViewport])
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0, pixelRatio: 1 })
-  const [currentSamples, setCurrentSamples] = useState<InkBoardWorldSample[]>([])
   const [erasedIds, setErasedIds] = useState<ReadonlySet<string>>(new Set())
-  const currentOutline = useMemo(
-    () => (currentSamples.length > 1 ? buildStrokeOutline(currentSamples, viewport, penStyle.width, penStyle.pressure) : []),
-    [currentSamples, viewport, penStyle.width, penStyle.pressure]
-  )
+  // Live stroke is drawn imperatively (no React render per pen sample).
+  const predictedSamplesRef = useRef<InkBoardWorldSample[]>([])
+  const lastSampleTimeRef = useRef(0)
+  const canvasSizeRef = useRef(canvasSize)
+  canvasSizeRef.current = canvasSize
+  const themeRef = useRef(resolvedTheme)
+  themeRef.current = resolvedTheme
+  /** The finished stroke stays on the glass until the acetate has drawn it (no flicker). */
+  const clearGlassAfterCommitRef = useRef(false)
 
   useEffect(() => { acetateStrokesRef.current = acetateStrokes }, [acetateStrokes])
   useEffect(() => { activeToolRef.current = activeTool }, [activeTool])
   const penStyleRef = useRef<InkPenStyle>(penStyle)
   useEffect(() => { penStyleRef.current = penStyle }, [penStyle])
+
+  /** Draw the in-progress stroke (+ predicted tip) straight onto the low-latency glass canvas. */
+  const drawLiveStroke = useCallback(() => {
+    const canvas = glassCanvasRef.current
+    if (!canvas) return
+    const context = getGlassContext(canvas)
+    if (!context) return
+    const size = canvasSizeRef.current
+    context.setTransform(size.pixelRatio, 0, 0, size.pixelRatio, 0, 0)
+    context.clearRect(0, 0, size.width, size.height)
+    const samples = currentSamplesRef.current
+    if (samples.length < 1) return
+    const withPrediction =
+      predictedSamplesRef.current.length > 0 ? [...samples, ...predictedSamplesRef.current] : samples
+    if (withPrediction.length < 2) return
+    const style = penStyleRef.current
+    const outline = buildStrokeOutline(withPrediction, getViewportRef.current(), style.width, style.pressure)
+    drawStrokePolygon(context, outline, displayInkColor(style.color, themeRef.current), DEFAULT_INK_STROKE_STYLE.opacity)
+  }, [])
 
   // Eraser guide: a small dot under the pointer, in the user's crosshair color.
   // Positioned imperatively (no re-render per mouse move).
@@ -275,7 +308,7 @@ export function InkOverlay({
       canvas.style.width = `${canvasSize.width}px`
       canvas.style.height = `${canvasSize.height}px`
 
-      const context = canvas.getContext('2d')
+      const context = canvas === glassCanvasRef.current ? getGlassContext(canvas) : canvas.getContext('2d')
       if (!context) return
       context.setTransform(canvasSize.pixelRatio, 0, 0, canvasSize.pixelRatio, 0, 0)
     }
@@ -284,22 +317,10 @@ export function InkOverlay({
     configureCanvas(acetateCanvasRef.current)
   }, [canvasSize])
 
+  // Re-draw the live stroke if the view changes mid-stroke (e.g. zooming while drawing).
   useEffect(() => {
-    const canvas = glassCanvasRef.current
-    if (!canvas) return
-    const context = canvas.getContext('2d')
-    if (!context) return
-
-    context.clearRect(0, 0, canvasSize.width, canvasSize.height)
-    if (currentOutline.length < 2) return
-
-    drawStrokePolygon(
-      context,
-      currentOutline,
-      displayInkColor(penStyle.color, resolvedTheme),
-      DEFAULT_INK_STROKE_STYLE.opacity
-    )
-  }, [canvasSize.height, canvasSize.width, currentOutline, penStyle.color, resolvedTheme])
+    drawLiveStroke()
+  }, [viewport, canvasSize, drawLiveStroke])
 
   useEffect(() => {
     const canvas = acetateCanvasRef.current
@@ -350,6 +371,13 @@ export function InkOverlay({
     }
     context.globalAlpha = 1
     context.setTransform(pr, 0, 0, pr, 0, 0)
+
+    if (clearGlassAfterCommitRef.current && activePointerIdRef.current === null) {
+      clearGlassAfterCommitRef.current = false
+      currentSamplesRef.current = []
+      predictedSamplesRef.current = []
+      drawLiveStroke()
+    }
   }, [acetateStrokes, acetateVisible, canvasSize.height, canvasSize.width, canvasSize.pixelRatio, viewport, erasedIds, resolvedTheme, selectedStrokeIds, selectedStrokeOffset])
 
   useEffect(() => {
@@ -357,10 +385,11 @@ export function InkOverlay({
     activePointerIdRef.current = null
     panPointerIdRef.current = null
     currentSamplesRef.current = []
-    setCurrentSamples([])
+    predictedSamplesRef.current = []
+    drawLiveStroke()
     erasedIdsRef.current = new Set()
     setErasedIds(new Set())
-  }, [active])
+  }, [active, drawLiveStroke])
 
   useEffect(() => {
     if (activePointerIdRef.current === null && erasedIds.size > 0) {
@@ -372,6 +401,41 @@ export function InkOverlay({
   useEffect(() => {
     const root = rootRef.current
     if (!root) return
+
+    // pointerrawupdate fires as soon as the pen reports (not aligned to frames).
+    const usesRawUpdates = 'onpointerrawupdate' in window
+
+    /** Append every pen sample since the last event (coalesced) and the predicted tip, then draw. */
+    const addPenSamples = (event: PointerEvent): void => {
+      if (activePointerIdRef.current !== event.pointerId) return
+      const bounds = root.getBoundingClientRect()
+      const vp = getViewportRef.current()
+      const minSpacing = DEFAULT_INK_STROKE_DYNAMICS.sampleSpacing / Math.max(1, vp.zoom)
+      const coalesced = typeof event.getCoalescedEvents === 'function' ? event.getCoalescedEvents() : []
+      const sources = coalesced.length > 0 ? coalesced : [event]
+      const samples = currentSamplesRef.current
+      for (const source of sources) {
+        if (!isValidPointerSample(source)) continue
+        // pointerrawupdate and pointermove report the same samples: keep each once.
+        if (source.timeStamp <= lastSampleTimeRef.current) continue
+        lastSampleTimeRef.current = source.timeStamp
+        const sample = makeSample(source, vp, bounds)
+        const last = samples[samples.length - 1]
+        if (last && Math.hypot(sample.x - last.x, sample.y - last.y) < minSpacing) continue
+        samples.push(sample)
+      }
+      const predicted = typeof event.getPredictedEvents === 'function' ? event.getPredictedEvents() : []
+      predictedSamplesRef.current = predicted
+        .filter(isValidPointerSample)
+        .map((source) => makeSample(source, vp, bounds))
+      drawLiveStroke()
+      event.preventDefault()
+    }
+
+    const handlePointerRawUpdate = (event: Event): void => {
+      if (!active || activeToolRef.current !== 'pen') return
+      addPenSamples(event as PointerEvent)
+    }
 
     const handlePointerDown = (event: PointerEvent) => {
       if (!active) return
@@ -397,7 +461,10 @@ export function InkOverlay({
         const bounds = root.getBoundingClientRect()
         const sample = makeSample(event, getViewportRef.current(), bounds)
         currentSamplesRef.current = [sample]
-        setCurrentSamples([sample])
+        lastSampleTimeRef.current = event.timeStamp
+        predictedSamplesRef.current = []
+        clearGlassAfterCommitRef.current = false
+        drawLiveStroke()
         erasedIdsRef.current = new Set()
         setErasedIds(new Set())
       } else if (tool === 'eraser') {
@@ -430,27 +497,8 @@ export function InkOverlay({
       const tool = activeToolRef.current
 
       if (tool === 'pen') {
-        const bounds = root.getBoundingClientRect()
-        const nextSample = makeSample(event, getViewportRef.current(), bounds)
-        const previous = currentSamplesRef.current
-        const last = previous[previous.length - 1]
-
-        if (!last) {
-          currentSamplesRef.current = [nextSample]
-          setCurrentSamples([nextSample])
-          event.preventDefault()
-          return
-        }
-
-        const distance = Math.hypot(nextSample.x - last.x, nextSample.y - last.y)
-        if (distance < DEFAULT_INK_STROKE_DYNAMICS.sampleSpacing / Math.max(1, getViewportRef.current().zoom)) {
-          event.preventDefault()
-          return
-        }
-
-        const next = [...previous, nextSample]
-        currentSamplesRef.current = next
-        setCurrentSamples(next)
+        // Raw updates usually delivered these already; duplicates are skipped by timestamp.
+        addPenSamples(event)
       } else if (tool === 'eraser') {
         const bounds = root.getBoundingClientRect()
         const worldX = (event.clientX - bounds.left - getViewportRef.current().x) / getViewportRef.current().zoom
@@ -503,9 +551,26 @@ export function InkOverlay({
             ? [...previous, finalSample]
             : previous
 
-        currentSamplesRef.current = []
-        setCurrentSamples([])
         activePointerIdRef.current = null
+        predictedSamplesRef.current = []
+
+        if (samples.length > 1) {
+          // Keep it on the glass until the acetate redraw shows the committed stroke;
+          // fall back to clearing shortly after in case nothing is committed.
+          currentSamplesRef.current = samples
+          drawLiveStroke()
+          clearGlassAfterCommitRef.current = true
+          window.setTimeout(() => {
+            if (clearGlassAfterCommitRef.current && activePointerIdRef.current === null) {
+              clearGlassAfterCommitRef.current = false
+              currentSamplesRef.current = []
+              drawLiveStroke()
+            }
+          }, 400)
+        } else {
+          currentSamplesRef.current = []
+          drawLiveStroke()
+        }
 
         if (samples.length > 1) {
           onTransfer({
@@ -516,7 +581,11 @@ export function InkOverlay({
               color: penStyleRef.current.color,
               width: penStyleRef.current.width
             },
-            dynamics: { ...DEFAULT_INK_STROKE_DYNAMICS, pressure: penStyleRef.current.pressure },
+            dynamics: {
+              ...DEFAULT_INK_STROKE_DYNAMICS,
+              pressure: penStyleRef.current.pressure,
+              streamline: LIVE_STREAMLINE
+            },
             samples,
             createdAt: new Date().toISOString()
           })
@@ -558,6 +627,7 @@ export function InkOverlay({
 
     root.addEventListener('pointerdown', handlePointerDown)
     root.addEventListener('pointermove', handlePointerMove)
+    if (usesRawUpdates) root.addEventListener('pointerrawupdate', handlePointerRawUpdate)
     root.addEventListener('pointerleave', handlePointerLeave)
     root.addEventListener('pointerup', handlePointerUp)
     root.addEventListener('pointercancel', handlePointerCancel)
@@ -565,11 +635,12 @@ export function InkOverlay({
     return () => {
       root.removeEventListener('pointerdown', handlePointerDown)
       root.removeEventListener('pointermove', handlePointerMove)
+      if (usesRawUpdates) root.removeEventListener('pointerrawupdate', handlePointerRawUpdate)
       root.removeEventListener('pointerleave', handlePointerLeave)
       root.removeEventListener('pointerup', handlePointerUp)
       root.removeEventListener('pointercancel', handlePointerCancel)
     }
-  }, [active, onTransfer])
+  }, [active, onTransfer, drawLiveStroke])
 
   useEffect(() => {
     const root = rootRef.current

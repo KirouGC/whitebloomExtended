@@ -64,6 +64,11 @@ export type InkStrokeDynamics = {
    * Omitted on strokes saved before the option existed (they used pressure).
    */
   pressure?: boolean
+  /**
+   * perfect-freehand streamline used when the stroke was drawn. Lower = the tip
+   * follows the pen more tightly (less lag). Omitted on older strokes (0.44).
+   */
+  streamline?: number
 }
 
 export type InkBoardWorldSample = {
