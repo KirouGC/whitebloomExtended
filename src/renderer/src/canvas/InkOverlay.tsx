@@ -405,7 +405,7 @@ export function InkOverlay({
     // pointerrawupdate fires as soon as the pen reports (not aligned to frames).
     const usesRawUpdates = 'onpointerrawupdate' in window
 
-    /** Append every pen sample since the last event (coalesced) and the predicted tip, then draw. */
+    /** Append every pen sample since the last event (coalesced), then draw. */
     const addPenSamples = (event: PointerEvent): void => {
       if (activePointerIdRef.current !== event.pointerId) return
       const bounds = root.getBoundingClientRect()
@@ -424,10 +424,10 @@ export function InkOverlay({
         if (last && Math.hypot(sample.x - last.x, sample.y - last.y) < minSpacing) continue
         samples.push(sample)
       }
-      const predicted = typeof event.getPredictedEvents === 'function' ? event.getPredictedEvents() : []
-      predictedSamplesRef.current = predicted
-        .filter(isValidPointerSample)
-        .map((source) => makeSample(source, vp, bounds))
+      // No predicted points: the browser's prediction jumps around between samples and
+      // made the stroke tip wobble like a shaking stick. Drawing in the event on a
+      // low-latency canvas already keeps the tip under the pen.
+      predictedSamplesRef.current = []
       drawLiveStroke()
       event.preventDefault()
     }

@@ -937,6 +937,9 @@ export function Canvas({
   const selectedStrokeIdsRef = useRef<ReadonlySet<string>>(selectedStrokeIds)
   selectedStrokeIdsRef.current = selectedStrokeIds
   const strokeDragAnchorRef = useRef<{ id: string; x: number; y: number } | null>(null)
+  // Paste lands under the cursor; the paste implementation is defined further down.
+  const lastPointerClientRef = useRef<{ x: number; y: number } | null>(null)
+  const pasteCanvasPayloadRef = useRef<((payload: CanvasClipboardPayload) => void) | null>(null)
   // Start positions of the selected nodes while the ink selection box is dragged.
   const boxDragNodeStartRef = useRef<Map<string, { x: number; y: number }> | null>(null)
   const nodesRef = useRef<RFNode[]>([])
@@ -2034,7 +2037,29 @@ export function Canvas({
     }
 
     const copiedNodes = boardNodes.filter((node) => copiedNodeIdSet.has(node.id))
-    if (copiedNodes.length === 0) return null
+    const copiedStrokes = boardInkStrokesRef.current.filter((stroke) =>
+      selectedStrokeIdsRef.current.has(stroke.id)
+    )
+    if (copiedNodes.length === 0) {
+      if (copiedStrokes.length === 0) return null
+      // Ink-only selection.
+      let minX = Infinity
+      let minY = Infinity
+      for (const stroke of copiedStrokes) {
+        for (const p of stroke.samples as InkBoardWorldSample[]) {
+          if (p.x < minX) minX = p.x
+          if (p.y < minY) minY = p.y
+        }
+      }
+      return {
+        kind: CANVAS_CLIPBOARD_KIND,
+        version: 1,
+        nodes: [],
+        edges: [],
+        anchor: { x: minX, y: minY },
+        strokes: cloneJsonValue(copiedStrokes)
+      }
+    }
 
     const copiedEdgeIds = new Set(selectedEdgeIds)
     const copiedEdges = boardEdges.filter((edge) => {
@@ -2046,13 +2071,20 @@ export function Canvas({
       x: Math.min(...bounds.map((bound) => bound.left)),
       y: Math.min(...bounds.map((bound) => bound.top))
     }
+    for (const stroke of copiedStrokes) {
+      for (const p of stroke.samples as InkBoardWorldSample[]) {
+        if (p.x < anchor.x) anchor.x = p.x
+        if (p.y < anchor.y) anchor.y = p.y
+      }
+    }
 
     return {
       kind: CANVAS_CLIPBOARD_KIND,
       version: 1,
       nodes: cloneJsonValue(copiedNodes),
       edges: cloneJsonValue(copiedEdges),
-      anchor
+      anchor,
+      ...(copiedStrokes.length > 0 ? { strokes: cloneJsonValue(copiedStrokes) } : {})
     }
   }, [boardEdges, boardNodes, selectedEdgeIds, selectedNodeIds])
 
@@ -2063,9 +2095,7 @@ export function Canvas({
       const payload = parseCanvasClipboardPayload(text)
       if (payload) {
         setActivePayloadPlacement(null)
-        setActiveClipboardPlacement(payload)
-        setActiveTool('payload')
-        blurToolbarButtonIfFocused()
+        pasteCanvasPayloadRef.current?.(payload)
         return true
       }
 
@@ -2571,21 +2601,35 @@ export function Canvas({
       if (!result.ok) return false
 
       if (options?.cut) {
-        await runCanvasCommand(
-          WHITEBLOOM_COMMAND_IDS.canvas.deleteSelection,
-          { includeClusterContents: true } satisfies CanvasDeleteSelectionCommandArgs,
-          {
-            source: 'shortcut',
-            metadata: {
-              key: 'cut'
+        const undoLengthBefore = useHistoryStore.getState().undoLength('canvas-mode')
+        if (payload.nodes.length > 0) {
+          await runCanvasCommand(
+            WHITEBLOOM_COMMAND_IDS.canvas.deleteSelection,
+            { includeClusterContents: true } satisfies CanvasDeleteSelectionCommandArgs,
+            {
+              source: 'shortcut',
+              metadata: {
+                key: 'cut'
+              }
             }
-          }
-        )
+          )
+          flushBoardHistory()
+        }
+        const cutStrokeIds = new Set((payload.strokes ?? []).map((stroke) => stroke.id))
+        if (cutStrokeIds.size > 0 && boardInkBinding) {
+          const erasedStrokes = boardInkStrokesRef.current.filter((stroke) => cutStrokeIds.has(stroke.id))
+          setSelectedStrokeIds(EMPTY_STROKE_SELECTION)
+          await runCanvasCommand(WHITEBLOOM_COMMAND_IDS.canvas.inkEraseStrokes, {
+            binding: boardInkBinding,
+            erasedStrokes
+          })
+        }
+        useHistoryStore.getState().mergeSince('canvas-mode', undoLengthBefore)
       }
 
       return true
     },
-    [buildClipboardPayloadFromSelection, runCanvasCommand]
+    [boardInkBinding, buildClipboardPayloadFromSelection, runCanvasCommand]
   )
 
   const fitSelectedClusterToChildren = useCallback(() => {
@@ -3677,7 +3721,8 @@ export function Canvas({
 
         if (key === 'c' || key === 'x') {
           if (isEditableTarget(event.target)) return
-          const hasNodeSelection = nodes.some((node) => node.selected)
+          const hasNodeSelection =
+            nodes.some((node) => node.selected) || selectedStrokeIdsRef.current.size > 0
           if (!hasNodeSelection) return
 
           event.preventDefault()
@@ -3960,6 +4005,87 @@ export function Canvas({
    * Dragging the ink selection box moves EVERYTHING in the selection: strokes and
    * the selected nodes (images, text, shapes…), as one undoable step.
    */
+  useEffect(() => {
+    const onPointerMove = (event: PointerEvent): void => {
+      lastPointerClientRef.current = { x: event.clientX, y: event.clientY }
+    }
+    window.addEventListener('pointermove', onPointerMove, { passive: true })
+    return () => window.removeEventListener('pointermove', onPointerMove)
+  }, [])
+
+  /**
+   * Paste a copied selection right away, centered under the cursor (or slightly
+   * offset from the original if the cursor isn't over the board). Nodes and ink
+   * are pasted together, selected, and undone with a single Ctrl+Z.
+   */
+  const pasteCanvasPayload = useCallback(
+    (payload: CanvasClipboardPayload) => {
+      const strokes = (payload.strokes ?? []) as BoardInkStroke[]
+      // Content bounds, to center the paste on the cursor.
+      let maxX = payload.anchor.x
+      let maxY = payload.anchor.y
+      for (const node of payload.nodes) {
+        maxX = Math.max(maxX, node.position.x + node.size.w)
+        maxY = Math.max(maxY, node.position.y + node.size.h)
+      }
+      for (const stroke of strokes) {
+        for (const p of stroke.samples) {
+          if (p.x > maxX) maxX = p.x
+          if (p.y > maxY) maxY = p.y
+        }
+      }
+      const width = maxX - payload.anchor.x
+      const height = maxY - payload.anchor.y
+
+      const pane = document.querySelector<HTMLElement>('[data-board-capture="root"]')?.getBoundingClientRect()
+      const pointer = lastPointerClientRef.current
+      const pointerOverBoard =
+        pointer && pane && pointer.x >= pane.left && pointer.x <= pane.right && pointer.y >= pane.top && pointer.y <= pane.bottom
+      const target = pointerOverBoard
+        ? (() => {
+            const p = screenToFlowPosition({ x: pointer.x, y: pointer.y }, { snapToGrid: false })
+            return { x: p.x - width / 2, y: p.y - height / 2 }
+          })()
+        : { x: payload.anchor.x + 24, y: payload.anchor.y + 24 }
+      const dx = target.x - payload.anchor.x
+      const dy = target.y - payload.anchor.y
+
+      const undoLengthBefore = useHistoryStore.getState().undoLength('canvas-mode')
+      if (payload.nodes.length > 0) {
+        placeClipboardPayloadAtPosition(payload, target)
+        flushBoardHistory()
+      } else {
+        setNodes((nds) => nds.map((n) => (n.selected ? { ...n, selected: false } : n)))
+      }
+
+      if (strokes.length > 0 && boardInkBinding) {
+        const now = Date.now()
+        const pasted: BoardInkStroke[] = strokes.map((stroke, index) => ({
+          ...stroke,
+          id: crypto.randomUUID(),
+          createdAt: new Date(now + index).toISOString(),
+          samples: (stroke.samples as InkBoardWorldSample[]).map((p) => ({ ...p, x: p.x + dx, y: p.y + dy }))
+        }))
+        const before = boardInkStrokesRef.current
+        const after = sortStrokes([...before, ...pasted])
+        setAcetateVisible(true)
+        void runCanvasCommand(WHITEBLOOM_COMMAND_IDS.canvas.inkReplaceStrokes, {
+          binding: boardInkBinding,
+          before,
+          after
+        }).then(() => {
+          setSelectedStrokeIds(new Set(pasted.map((stroke) => stroke.id)))
+          useHistoryStore.getState().mergeSince('canvas-mode', undoLengthBefore)
+        })
+      } else {
+        setSelectedStrokeIds(EMPTY_STROKE_SELECTION)
+      }
+      setActiveTool('pointer')
+    },
+    [boardInkBinding, placeClipboardPayloadAtPosition, runCanvasCommand, screenToFlowPosition]
+  )
+  pasteCanvasPayloadRef.current = pasteCanvasPayload
+
   const handleSelectedStrokesDrag = useCallback(
     (dx: number, dy: number, done: boolean) => {
       if (!boxDragNodeStartRef.current) {

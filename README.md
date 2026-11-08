@@ -45,6 +45,7 @@ Group nodes into **clusters** (frames), connect them with **edges** (with labels
 | Zoom | Mouse wheel (0.02× – 16×) |
 | Select / move | Left mouse button; drag on empty space to select an area |
 | Undo / redo | `Ctrl+Z` / `Ctrl+Y` (or `Ctrl+Shift+Z`) |
+| Copy / cut / paste | `Ctrl+C` / `Ctrl+X` / `Ctrl+V` (pastes under the cursor) |
 | Back to the pointer | `Esc` |
 
 **Tool shortcuts** (hover any tool to see its shortcut):
@@ -114,6 +115,7 @@ Formats: **PNG, JPG, JPEG, WebP, BMP**, at the highest resolution the GPU safely
 
 ### Selection, undo and redo
 - **Area selection picks everything it touches**: nodes, images, shapes, clusters and **ink strokes**. Move it all together (one undo step) or delete it with `Delete`.
+- **Copy, cut and paste** (`Ctrl+C` / `Ctrl+X` / `Ctrl+V`) any selection, ink included. Pasting places it right under the cursor, already selected.
 - **Reliable undo/redo** for every change on the board (create, move, resize, text, styles, delete, ink…), with a deep history. Large undos are instant, even with hundreds of strokes.
 
 ### Quality of life
