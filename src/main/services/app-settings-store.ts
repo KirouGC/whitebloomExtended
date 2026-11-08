@@ -25,7 +25,9 @@ export async function readAppSettings(): Promise<AppSettings> {
   // First launch or upgrade from pre-i18n build: no language stored → detect from system locale.
   const hasLanguage = raw !== null && typeof raw === 'object' && 'language' in (raw as object)
   if (!hasLanguage) {
-    settings.language = normalizeLanguage(app.getLocale())
+    // Spanish systems get Spanish; every other system language defaults to English.
+    const systemLanguage = app.getPreferredSystemLanguages()[0] ?? app.getLocale()
+    settings.language = normalizeLanguage(systemLanguage)
     await writeAppSettings(settings).catch(() => {})
   }
 

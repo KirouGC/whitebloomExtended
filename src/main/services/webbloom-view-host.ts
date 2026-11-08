@@ -118,9 +118,8 @@ export function initializeWebBloomViewHost(): void {
 
   const webBloomSession = getWebBloomSession()
   ensureWebBloomSecurity(webBloomSession)
-  void ensureAdblock(webBloomSession).catch((error) => {
-    console.warn('[webbloom] adblock initialization failed', error)
-  })
+  // The adblock engine (and its filter-list download) is initialized lazily on the
+  // first web page bloom, so it doesn't compete with app startup.
 
   ipcMain.handle('webbloom:create', async (event, input: { id: string; url: string }) => {
     const id = typeof input?.id === 'string' ? input.id.trim() : ''
@@ -128,7 +127,12 @@ export function initializeWebBloomViewHost(): void {
     const owner = BrowserWindow.fromWebContents(event.sender)
     if (!id || !url || !owner) return { ok: false }
 
-    await ensureAdblock(webBloomSession)
+    try {
+      await ensureAdblock(webBloomSession)
+    } catch (error) {
+      console.warn('[webbloom] adblock initialization failed', error)
+      blockerReady = null
+    }
 
     removeView(id)
     const view = createWebBloomView(url)

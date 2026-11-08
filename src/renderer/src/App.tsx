@@ -1,7 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useState } from 'react'
 import { ReactFlowProvider } from '@xyflow/react'
 import { useTranslation } from 'react-i18next'
-import { Canvas } from './canvas/Canvas'
 import ProjectFinderWindow, {
   type ProjectFinderMode
 } from './components/project-finder/ProjectFinderWindow'
@@ -84,11 +83,22 @@ async function captureAndSaveThumbnail(boardPath: string, workspaceRoot: string)
   }
 }
 
+// The board editor (and every module it registers) is the bulk of the app's code.
+// Loading it lazily lets the start screen paint first; it is prefetched right after.
+const loadCanvasModule = (): Promise<typeof import('./canvas/Canvas')> => import('./canvas/Canvas')
+const Canvas = lazy(() => loadCanvasModule().then((m) => ({ default: m.Canvas })))
+
 function App(): React.JSX.Element {
   const { t } = useTranslation()
 
   useConnectivityHeartbeat()
   useApplyAppearance()
+
+  // Warm up the board editor chunk once the start screen is on screen.
+  useEffect(() => {
+    const idle = window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 200))
+    idle(() => void loadCanvasModule())
+  }, [])
   const loadAppSettings = useAppSettingsStore((s) => s.loadAppSettings)
   useEffect(() => {
     void loadAppSettings()
@@ -758,6 +768,7 @@ function App(): React.JSX.Element {
       <>
         <ReactFlowProvider>
           <div style={{ width: '100vw', height: '100vh' }}>
+            <Suspense fallback={null}>
             <Canvas
               onGoHome={handleGoHome}
               onGoToWorkspaceHome={handleGoToWorkspaceHome}
@@ -766,6 +777,7 @@ function App(): React.JSX.Element {
               shellPaletteRequest={shellPaletteRequest}
               onConsumeShellPaletteRequest={handleConsumeShellPaletteRequest}
             />
+            </Suspense>
           </div>
         </ReactFlowProvider>
         {isCreateBoardModalOpen ? (

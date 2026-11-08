@@ -1,6 +1,6 @@
 {
   "name": "whitebloom",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A local whiteboard that blooms.",
   "main": "./out/main/index.js",
   "author": {
@@ -25,16 +25,40 @@
     "publish": [
       {
         "provider": "github",
-        "owner": "whitevanillaskies",
-        "repo": "whitebloom",
+        "owner": "KirouGC",
+        "repo": "whitebloomExtended",
         "releaseType": "draft"
       }
     ],
     "win": {
       "target": [
         "nsis",
-        "portable"
-      ]
+        "zip"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Whitebloom",
+      "uninstallDisplayName": "Whitebloom",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "installerSidebar": "build/installerSidebar.bmp",
+      "uninstallerSidebar": "build/installerSidebar.bmp",
+      "installerHeader": "build/installerHeader.bmp",
+      "multiLanguageInstaller": true,
+      "installerLanguages": [
+        "en_US",
+        "es_ES"
+      ],
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "Whitebloom-Setup-${version}.${ext}"
     },
     "linux": {
       "target": [
@@ -69,29 +93,21 @@
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "@ghostery/adblocker-electron": "^2.15.0",
-    "@lexical/code-core": "^0.42.0",
-    "@lexical/react": "^0.42.0",
-    "@videojs/react": "^10.0.0-beta.15",
-    "@xyflow/react": "^12.10.2",
     "cross-fetch": "^4.1.0",
-    "html-to-image": "^1.11.13",
-    "i18next": "^26.0.3",
-    "lexical": "^0.42.0",
-    "lucide-react": "^1.7.0",
-    "pdfjs-dist": "^5.6.205",
-    "perfect-freehand": "^1.2.3",
-    "react-i18next": "^17.0.2",
-    "react-markdown": "^10.1.0",
-    "zustand": "^5.0.12"
+    "i18next": "^26.0.3"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
     "@electron-toolkit/eslint-config-ts": "^3.1.0",
     "@electron-toolkit/tsconfig": "^2.0.0",
+    "@lexical/code-core": "^0.42.0",
+    "@lexical/react": "^0.42.0",
     "@types/node": "^22.19.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
+    "@videojs/react": "^10.0.0-beta.15",
     "@vitejs/plugin-react": "^5.1.1",
+    "@xyflow/react": "^12.10.2",
     "electron": "^39.2.6",
     "electron-builder": "^26.0.12",
     "electron-vite": "^5.0.0",
@@ -99,11 +115,19 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
+    "html-to-image": "^1.11.13",
+    "lexical": "^0.42.0",
+    "lucide-react": "^1.7.0",
+    "pdfjs-dist": "^5.6.205",
+    "perfect-freehand": "^1.2.3",
     "prettier": "^3.7.4",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
+    "react-i18next": "^17.0.2",
+    "react-markdown": "^10.1.0",
     "typescript": "^5.9.3",
     "vite": "^7.2.6",
-    "vitest": "^4.1.3"
+    "vitest": "^4.1.3",
+    "zustand": "^5.0.12"
   }
 }

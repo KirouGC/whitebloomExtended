@@ -12,7 +12,7 @@ import {
   type ThemePreference,
   type UnhandledDropBehavior
 } from '../../../shared/app-settings'
-import i18n from '../i18n'
+import i18n, { LANGUAGE_CACHE_KEY } from '../i18n'
 import { normalizeFolderKey } from '../../../shared/quick-access'
 import { createLogger } from '../../../shared/logger'
 import { useBoardStore } from './board'
@@ -31,6 +31,14 @@ type AppSettingsState = AppSettings & {
   addQuickAccessFolder: (folderPath: string) => Promise<void>
   removeQuickAccessFolder: (folderPath: string) => Promise<void>
   setQuickAccessNeverAsk: (neverAsk: boolean) => Promise<void>
+}
+
+function rememberLanguage(language: string): void {
+  try {
+    localStorage.setItem(LANGUAGE_CACHE_KEY, language)
+  } catch {
+    // storage unavailable — the language still applies once settings load
+  }
 }
 
 function pickSettings(state: AppSettingsState): AppSettings {
@@ -67,6 +75,7 @@ export const useAppSettingsStore = create<AppSettingsState>((set, get) => ({
     const settings = normalizeAppSettings(await window.api.loadAppSettings())
     set({ ...settings, isHydrated: true })
     useBoardStore.getState().setActiveUsername(settings.user.username)
+    rememberLanguage(settings.language)
     await i18n.changeLanguage(settings.language)
   },
 
@@ -102,6 +111,7 @@ export const useAppSettingsStore = create<AppSettingsState>((set, get) => ({
     const normalized = normalizeLanguage(lang)
     const next: AppSettings = { ...get(), language: normalized }
     set(next)
+    rememberLanguage(normalized)
     await i18n.changeLanguage(normalized)
     const result = await window.api.saveAppSettings(next)
     set({ ...normalizeAppSettings(result.settings) })

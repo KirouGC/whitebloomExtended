@@ -1,7 +1,11 @@
 import type { WhitebloomModule } from '../types'
-import { PdfEditor } from './PdfEditor'
+import { lazy } from 'react'
+
 import { PdfIcon } from './PdfIcon'
 import { PdfNodeComponent } from './PdfNodeComponent'
+
+// Loaded on first open so its code (and heavy deps) stay out of the startup bundle.
+const PdfEditor = lazy(() => import('./PdfEditor').then((m) => ({ default: m.PdfEditor })))
 
 export const pdfModule: WhitebloomModule = {
   id: 'com.whitebloom.pdf',

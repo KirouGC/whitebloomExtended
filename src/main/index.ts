@@ -13,6 +13,7 @@ import { ensureAppStorageDirectories } from './services/app-storage'
 import { readAppSettings } from './services/app-settings-store'
 import { initializeWebBloomViewHost } from './services/webbloom-view-host'
 import { createMainProcessContext } from './state/main-process-context'
+import { setStartupTheme } from './services/startup-theme'
 
 registerResourceSchemes()
 
@@ -20,8 +21,8 @@ registerResourceSchemes()
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
-  // Must match electron-builder's appId so Windows groups the taskbar icon correctly.
-  electronApp.setAppUserModelId('ar.whitebloom.app')
+  // Must match electron-builder's appId (package.json → build.appId) so Windows groups the taskbar icon correctly.
+  electronApp.setAppUserModelId('ar.whitebloom')
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
@@ -56,6 +57,7 @@ app.whenReady().then(async () => {
   await ensureAppStorageDirectories()
   const settings = await readAppSettings()
   await initializeMainI18n(settings.language)
+  setStartupTheme(settings.appearance.theme)
 
   registerResourceProtocols(context)
   registerBoardIpc(context)

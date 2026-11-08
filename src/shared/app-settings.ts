@@ -113,9 +113,13 @@ function normalizeUnhandledDrop(value: unknown): UnhandledDropBehavior {
   return DEFAULT_APP_SETTINGS.files.unhandledDrop
 }
 
+/** UI languages the app ships translations for. English is the default/fallback. */
+export const SUPPORTED_LANGUAGES = ['en', 'es'] as const
+
 export function normalizeLanguage(value: unknown): string {
   if (typeof value !== 'string' || !value.trim()) return DEFAULT_APP_SETTINGS.language
-  return value.split('-')[0].toLowerCase()
+  const base = value.split(/[-_]/)[0].toLowerCase()
+  return (SUPPORTED_LANGUAGES as readonly string[]).includes(base) ? base : DEFAULT_APP_SETTINGS.language
 }
 
 export function normalizeCommandAlias(value: unknown): string | undefined {

@@ -1,7 +1,14 @@
-import { BrowserWindow, shell } from 'electron'
+import { BrowserWindow, nativeTheme, shell } from 'electron'
+import { getStartupTheme } from './services/startup-theme'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
+
+function initialBackgroundColor(): string {
+  const theme = getStartupTheme()
+  const dark = theme === 'dark' || (theme === 'system' && nativeTheme.shouldUseDarkColors)
+  return dark ? '#1b1c1f' : '#fcfcfc'
+}
 
 export function createMainWindow(): BrowserWindow {
   const mainWindow = new BrowserWindow({
@@ -9,6 +16,8 @@ export function createMainWindow(): BrowserWindow {
     height: 670,
     show: false,
     autoHideMenuBar: true,
+    // Paint the theme's background immediately (no white flash while the UI loads).
+    backgroundColor: initialBackgroundColor(),
     // Window/taskbar icon on Windows and Linux (macOS uses the app bundle icon).
     ...(process.platform !== 'darwin' ? { icon } : {}),
     webPreferences: {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { Suspense, useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { ReactFlowProvider } from '@xyflow/react'
 import type { ActiveBloom } from './BloomContext'
@@ -73,6 +73,7 @@ export function BloomModal({ bloom, workspaceRoot, onClose }: Props) {
 
       {loadState.status === 'ready' && EditorComponent && (
         <ReactFlowProvider>
+          <Suspense fallback={<div className="bloom-modal__loading" />}>
           <EditorComponent
             resource={bloom.resource}
             workspaceRoot={workspaceRoot}
@@ -80,6 +81,7 @@ export function BloomModal({ bloom, workspaceRoot, onClose }: Props) {
             onSave={handleSave}
             onClose={onClose}
           />
+          </Suspense>
         </ReactFlowProvider>
       )}
     </div>
