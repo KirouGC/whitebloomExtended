@@ -10,7 +10,15 @@ import type { InkTool } from './InkToolbar'
 import { displayInkColor, useResolvedTheme } from '@renderer/theme/appearance'
 import { BOARD_MAX_ZOOM, BOARD_MIN_ZOOM } from './zoomLimits'
 import { useAppSettingsStore } from '@renderer/stores/app-settings'
-import { LIVE_STREAMLINE, strokeOutlineOptions, strokeStreamline, strokeUsesPressure } from './inkStrokeOptions'
+import {
+  LIVE_STREAMLINE,
+  rawStrokePath,
+  strokeIsRaw,
+  strokeOutlineOptions,
+  strokeRawPath,
+  strokeStreamline,
+  strokeUsesPressure
+} from './inkStrokeOptions'
 import './InkOverlay.css'
 
 const ERASER_SCREEN_RADIUS = 20
@@ -20,6 +28,8 @@ export type InkPenStyle = {
   width: number
   /** Width follows pen pressure. */
   pressure: boolean
+  /** Direct ink: draw the pen path as-is (no smoothing, no tapering). */
+  raw: boolean
 }
 
 type InkOverlayProps = {
@@ -61,6 +71,8 @@ function isLightHex(hex: string): boolean {
 
 type CachedStrokePath = {
   path: Path2D
+  /** Raw strokes are stroked (polyline at constant width) instead of filled. */
+  raw?: { width: number }
   minX: number
   minY: number
   maxX: number
@@ -77,6 +89,24 @@ const strokePathCache = new WeakMap<BoardInkStroke, CachedStrokePath>()
 function getCachedStrokePath(stroke: BoardInkStroke): CachedStrokePath | null {
   const cached = strokePathCache.get(stroke)
   if (cached) return cached
+  if (strokeIsRaw(stroke.dynamics)) {
+    const points = (stroke.samples as InkBoardWorldSample[]).map((s) => [s.x, s.y] as [number, number])
+    if (points.length === 0) return null
+    const half = stroke.style.width / 2
+    let rMinX = Infinity
+    let rMinY = Infinity
+    let rMaxX = -Infinity
+    let rMaxY = -Infinity
+    for (const [x, y] of points) {
+      rMinX = Math.min(rMinX, x - half)
+      rMinY = Math.min(rMinY, y - half)
+      rMaxX = Math.max(rMaxX, x + half)
+      rMaxY = Math.max(rMaxY, y + half)
+    }
+    const rawEntry = { path: rawStrokePath(points), raw: { width: stroke.style.width }, minX: rMinX, minY: rMinY, maxX: rMaxX, maxY: rMaxY }
+    strokePathCache.set(stroke, rawEntry)
+    return rawEntry
+  }
   if (stroke.samples.length < 2) return null
   const pressure = strokeUsesPressure(stroke.dynamics)
   const outline = getStroke(
@@ -230,6 +260,7 @@ export function InkOverlay({
   // Live stroke is drawn imperatively (no React render per pen sample).
   const predictedSamplesRef = useRef<InkBoardWorldSample[]>([])
   const lastSampleTimeRef = useRef(0)
+  const lastSampleKeyRef = useRef('')
   const canvasSizeRef = useRef(canvasSize)
   canvasSizeRef.current = canvasSize
   const themeRef = useRef(resolvedTheme)
@@ -253,10 +284,22 @@ export function InkOverlay({
     context.clearRect(0, 0, size.width, size.height)
     const samples = currentSamplesRef.current
     if (samples.length < 1) return
+    const style = penStyleRef.current
+    if (style.raw) {
+      const vp = getViewportRef.current()
+      const points = samples.map((s) => [s.x * vp.zoom + vp.x, s.y * vp.zoom + vp.y] as [number, number])
+      strokeRawPath(
+        context,
+        rawStrokePath(points),
+        style.width * vp.zoom,
+        displayInkColor(style.color, themeRef.current),
+        DEFAULT_INK_STROKE_STYLE.opacity
+      )
+      return
+    }
     const withPrediction =
       predictedSamplesRef.current.length > 0 ? [...samples, ...predictedSamplesRef.current] : samples
     if (withPrediction.length < 2) return
-    const style = penStyleRef.current
     const outline = buildStrokeOutline(withPrediction, getViewportRef.current(), style.width, style.pressure)
     drawStrokePolygon(context, outline, displayInkColor(style.color, themeRef.current), DEFAULT_INK_STROKE_STYLE.opacity)
   }, [])
@@ -361,9 +404,14 @@ export function InkOverlay({
         // Selection halo under the stroke.
         context.globalAlpha = 0.5
         context.lineJoin = 'round'
-        context.lineWidth = 6 / viewport.zoom
+        context.lineCap = 'round'
+        context.lineWidth = 6 / viewport.zoom + (entry.raw ? entry.raw.width : 0)
         context.strokeStyle = '#1e87ff'
         context.stroke(entry.path)
+      }
+      if (entry.raw) {
+        strokeRawPath(context, entry.path, entry.raw.width, displayInkColor(stroke.style.color, resolvedTheme), stroke.style.opacity)
+        continue
       }
       context.globalAlpha = stroke.style.opacity
       context.fillStyle = displayInkColor(stroke.style.color, resolvedTheme)
@@ -410,15 +458,21 @@ export function InkOverlay({
       if (activePointerIdRef.current !== event.pointerId) return
       const bounds = root.getBoundingClientRect()
       const vp = getViewportRef.current()
-      const minSpacing = DEFAULT_INK_STROKE_DYNAMICS.sampleSpacing / Math.max(1, vp.zoom)
+      // Direct ink keeps every distinct pen point (no spacing filter).
+      const minSpacing = penStyleRef.current.raw ? 0.0001 : DEFAULT_INK_STROKE_DYNAMICS.sampleSpacing / Math.max(1, vp.zoom)
       const coalesced = typeof event.getCoalescedEvents === 'function' ? event.getCoalescedEvents() : []
       const sources = coalesced.length > 0 ? coalesced : [event]
       const samples = currentSamplesRef.current
       for (const source of sources) {
         if (!isValidPointerSample(source)) continue
         // pointerrawupdate and pointermove report the same samples: keep each once.
-        if (source.timeStamp <= lastSampleTimeRef.current) continue
+        // A duplicate has the same timestamp AND position; distinct fast samples can
+        // share a timestamp, so time alone must not drop them (that lost quick strokes).
+        if (source.timeStamp < lastSampleTimeRef.current) continue
+        const key = `${source.timeStamp}:${source.clientX}:${source.clientY}`
+        if (key === lastSampleKeyRef.current) continue
         lastSampleTimeRef.current = source.timeStamp
+        lastSampleKeyRef.current = key
         const sample = makeSample(source, vp, bounds)
         const last = samples[samples.length - 1]
         if (last && Math.hypot(sample.x - last.x, sample.y - last.y) < minSpacing) continue
@@ -462,6 +516,7 @@ export function InkOverlay({
         const sample = makeSample(event, getViewportRef.current(), bounds)
         currentSamplesRef.current = [sample]
         lastSampleTimeRef.current = event.timeStamp
+        lastSampleKeyRef.current = `${event.timeStamp}:${event.clientX}:${event.clientY}`
         predictedSamplesRef.current = []
         clearGlassAfterCommitRef.current = false
         drawLiveStroke()
@@ -553,8 +608,10 @@ export function InkOverlay({
 
         activePointerIdRef.current = null
         predictedSamplesRef.current = []
+        // Direct ink keeps single taps (a dot); smoothed ink needs at least two points.
+        const keepStroke = samples.length > 1 || (penStyleRef.current.raw && samples.length === 1)
 
-        if (samples.length > 1) {
+        if (keepStroke) {
           // Keep it on the glass until the acetate redraw shows the committed stroke;
           // fall back to clearing shortly after in case nothing is committed.
           currentSamplesRef.current = samples
@@ -572,7 +629,7 @@ export function InkOverlay({
           drawLiveStroke()
         }
 
-        if (samples.length > 1) {
+        if (keepStroke) {
           onTransfer({
             id: crypto.randomUUID(),
             tool: 'pen',
@@ -583,8 +640,9 @@ export function InkOverlay({
             },
             dynamics: {
               ...DEFAULT_INK_STROKE_DYNAMICS,
-              pressure: penStyleRef.current.pressure,
-              streamline: LIVE_STREAMLINE
+              pressure: penStyleRef.current.raw ? false : penStyleRef.current.pressure,
+              streamline: LIVE_STREAMLINE,
+              ...(penStyleRef.current.raw ? { raw: true } : {})
             },
             samples,
             createdAt: new Date().toISOString()

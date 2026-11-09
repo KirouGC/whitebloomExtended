@@ -91,6 +91,8 @@ Open the meta palette (`Alt+X`) and run `screen.start-recording` to record the w
 ### Pen color and thickness
 A pen tray in the style of Microsoft Whiteboard: quick color dots in the ink toolbar, and a popover (click the active pen again) with 18 colors plus a custom color, thickness presets, a slider, a **pressure sensitivity** toggle (for graphics tablets) and a live stroke preview. Your last pen is remembered, and it also works on PDFs. While erasing, a small guide dot (in your crosshair color) shows exactly where you erase.
 
+**Direct ink** (in the same popover) draws exactly what your pen does, like Paint: no smoothing, no tapering, constant width, and even the quickest taps and tiny strokes are kept. The choice is global and stays the same on every board.
+
 ### Text formatting and auto-fit
 The text toolbar now has a **font picker** (bundled fonts plus common system fonts), **font size** (A− / size list / A+) and an **auto-fit** toggle: the text scales to fill its own box, which you resize from the corner. With the caret in the text, changes apply to the whole box. With a selection, they apply to the selected text.
 
@@ -120,6 +122,7 @@ Formats: **PNG, JPG, JPEG, WebP, BMP**, at the highest resolution the GPU safely
 
 ### Quality of life
 - Much wider zoom range for every tool (0.02× – 16×).
+- **No pen lag on big boards**: saving a stroke now sends only what changed instead of the whole ink layer. On a board with ~1,300 strokes, the slowest pen events dropped from ~400 ms to under 10 ms, and ink files are about half the size.
 - **Smoother panning and zooming**: ink is cached instead of being recomputed every frame (~9× cheaper), and images/videos no longer re-render while you move.
 - **Background dots** can be hidden per board (Board settings) or on all boards (Settings → App).
 - Faster startup: the board editor and heavy modules (PDF, Markdown, schemas…) load on demand, and the package is ~10× smaller (`app.asar` 254 MB → 21 MB).

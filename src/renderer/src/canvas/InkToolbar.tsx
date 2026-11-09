@@ -141,15 +141,29 @@ function PenStyleControl({ popoverId }: PenStyleControlProps): React.JSX.Element
               onChange={(e) => void updatePenStyle({ penWidth: Number(e.target.value) })}
             />
 
-            <label className="ink-pen-picker__check">
+            <label
+              className={`ink-pen-picker__check${penStyle.raw ? ' ink-pen-picker__check--disabled' : ''}`}
+              title={penStyle.raw ? t('inkToolbar.pressureDisabledHint') : undefined}
+            >
               <input
                 type="checkbox"
-                checked={penStyle.pressure}
+                checked={penStyle.pressure && !penStyle.raw}
+                disabled={penStyle.raw}
                 onChange={(e) => void updatePenStyle({ pressureSensitive: e.target.checked })}
                 onMouseDown={(e) => e.stopPropagation()}
                 onPointerDown={(e) => e.stopPropagation()}
               />
               <span>{t('inkToolbar.pressureLabel')}</span>
+            </label>
+            <label className="ink-pen-picker__check" title={t('inkToolbar.rawHint')}>
+              <input
+                type="checkbox"
+                checked={penStyle.raw}
+                onChange={(e) => void updatePenStyle({ rawStrokes: e.target.checked })}
+                onMouseDown={(e) => e.stopPropagation()}
+                onPointerDown={(e) => e.stopPropagation()}
+              />
+              <span>{t('inkToolbar.rawLabel')}</span>
             </label>
 
             <div className="ink-pen-picker__preview" aria-hidden>

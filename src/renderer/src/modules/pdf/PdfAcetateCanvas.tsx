@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { buildPagedOutlineOnPage, drawStrokePolygon, type PdfInkStroke } from './pdfInkShared'
+import { rawStrokePath, strokeRawPath } from '../../canvas/inkStrokeOptions'
 
 type PdfAcetateCanvasProps = {
   pageWidth: number
@@ -34,6 +35,16 @@ export function PdfAcetateCanvas({
     if (!visible) return
 
     for (const stroke of strokes) {
+      if (stroke.dynamics?.raw === true) {
+        strokeRawPath(
+          context,
+          rawStrokePath((stroke.samples as Array<{ u: number; v: number }>).map((s) => [s.u * pageWidth, s.v * pageHeight] as [number, number])),
+          stroke.style.width,
+          stroke.style.color,
+          stroke.style.opacity
+        )
+        continue
+      }
       const outline = buildPagedOutlineOnPage(
         stroke.samples,
         pageWidth,

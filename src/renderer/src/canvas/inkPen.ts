@@ -35,7 +35,8 @@ export function useInkPenStyle(): InkPenStyle {
   const color = useAppSettingsStore((s) => s.ink.penColor)
   const width = useAppSettingsStore((s) => s.ink.penWidth)
   const pressure = useAppSettingsStore((s) => s.ink.pressureSensitive)
-  return useMemo(() => ({ color, width, pressure }), [color, width, pressure])
+  const raw = useAppSettingsStore((s) => s.ink.rawStrokes)
+  return useMemo(() => ({ color, width, pressure, raw }), [color, width, pressure, raw])
 }
 
 /** Diameter of the preview dot for a given pen width, clamped to fit a 26px button. */

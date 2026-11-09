@@ -925,11 +925,17 @@ export function Canvas({
   const [boardInkStrokes, setBoardInkStrokes] = useState<BoardInkStroke[]>([])
   const boardInkStrokesRef = useRef<BoardInkStroke[]>(boardInkStrokes)
   boardInkStrokesRef.current = boardInkStrokes
-  // Ink writes are coalesced: the screen updates immediately and only the latest
-  // full layer is written to disk (one write even after many rapid undos).
+  // Ink writes send only what changed (added/removed strokes), merged while a send
+  // is in flight. Sending the whole layer on every stroke blocked the UI thread for
+  // ~250 ms on big boards (thousands of strokes) and caused pen lag.
   const inkWriterRef = useRef<{
     inFlight: boolean
-    pending: { root: string; binding: InkBoardSurfaceBinding; strokes: BoardInkStroke[] } | null
+    pending: {
+      root: string
+      binding: InkBoardSurfaceBinding
+      add: Map<string, BoardInkStroke>
+      removeIds: Set<string>
+    } | null
   }>({ inFlight: false, pending: null })
   // Ink strokes picked by the area selection (pointer tool), plus a live drag offset.
   const [selectedStrokeIds, setSelectedStrokeIds] = useState<ReadonlySet<string>>(EMPTY_STROKE_SELECTION)
@@ -3917,9 +3923,12 @@ export function Canvas({
         const job = writer.pending
         writer.pending = null
         try {
-          await window.api.setInkStrokes(job.root, job.binding, job.strokes)
+          await window.api.applyInkDelta(job.root, job.binding, {
+            add: [...job.add.values()],
+            removeIds: [...job.removeIds]
+          })
         } catch (error) {
-          console.error('[ink] failed to save ink layer', error)
+          console.error('[ink] failed to save ink changes', error)
         }
       }
     } finally {
@@ -3927,17 +3936,44 @@ export function Canvas({
     }
   }, [])
 
-  /** Show `next` immediately, then persist it (only the latest version is written). */
+  /** Show `next` immediately, then persist only the strokes that changed. */
   const applyInkStrokes = useCallback(
     (binding: InkSurfaceBinding, next: BoardInkStroke[]) => {
+      const previous = boardInkStrokesRef.current
       boardInkStrokesRef.current = next
       setBoardInkStrokes(next)
       if (!workspaceRoot) return
-      inkWriterRef.current.pending = {
-        root: workspaceRoot,
-        binding: binding as InkBoardSurfaceBinding,
-        strokes: next
+
+      // Strokes are immutable: a different object for the same id means it changed.
+      const previousById = new Map(previous.map((stroke) => [stroke.id, stroke] as const))
+      const nextIds = new Set<string>()
+      const added: BoardInkStroke[] = []
+      for (const stroke of next) {
+        nextIds.add(stroke.id)
+        if (previousById.get(stroke.id) !== stroke) added.push(stroke)
       }
+      const removed = previous.filter((stroke) => !nextIds.has(stroke.id)).map((stroke) => stroke.id)
+      if (added.length === 0 && removed.length === 0) return
+
+      const writer = inkWriterRef.current
+      const sameTarget =
+        writer.pending &&
+        writer.pending.root === workspaceRoot &&
+        writer.pending.binding.targetId === (binding as InkBoardSurfaceBinding).targetId
+      if (!sameTarget) {
+        writer.pending = {
+          root: workspaceRoot,
+          binding: binding as InkBoardSurfaceBinding,
+          add: new Map(),
+          removeIds: new Set()
+        }
+      }
+      const job = writer.pending!
+      for (const id of removed) {
+        job.add.delete(id)
+        job.removeIds.add(id)
+      }
+      for (const stroke of added) job.add.set(stroke.id, stroke)
       void flushInkWrites()
     },
     [flushInkWrites, workspaceRoot]

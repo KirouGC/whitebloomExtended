@@ -69,6 +69,11 @@ export type InkStrokeDynamics = {
    * follows the pen more tightly (less lag). Omitted on older strokes (0.44).
    */
   streamline?: number
+  /**
+   * Direct ("raw") ink: the pen path drawn as-is, like Paint — constant width,
+   * no smoothing, no tapering; single taps are kept as dots.
+   */
+  raw?: boolean
 }
 
 export type InkBoardWorldSample = {

@@ -335,7 +335,10 @@
     "colorLabel": "Color",
     "customColorLabel": "Color personalizado",
     "thicknessLabel": "Grosor",
-    "pressureLabel": "Sensibilidad a la presión"
+    "pressureLabel": "Sensibilidad a la presión",
+    "rawLabel": "Trazo directo (sin suavizado)",
+    "rawHint": "Dibuja exactamente lo que hace el lápiz, como en Paint: grosor fijo, sin suavizado ni puntas, y los toques rápidos quedan como puntos. Se aplica en todos los tableros.",
+    "pressureDisabledHint": "No disponible con trazo directo (grosor fijo)."
   },
   "quickAccessPrompt": {
     "title": "¿Agregar carpeta a Acceso rápido?",

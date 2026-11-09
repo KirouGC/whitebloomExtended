@@ -13,6 +13,7 @@ import { ensureAppStorageDirectories } from './services/app-storage'
 import { readAppSettings } from './services/app-settings-store'
 import { initializeWebBloomViewHost } from './services/webbloom-view-host'
 import { createMainProcessContext } from './state/main-process-context'
+import { flushInkWrites, hasPendingInkWrites } from './services/ink-store'
 import { setStartupTheme } from './services/startup-theme'
 
 registerResourceSchemes()
@@ -68,6 +69,17 @@ app.whenReady().then(async () => {
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow()
+  })
+})
+
+// Ink layers are written in the background; make sure the last strokes reach disk.
+let inkFlushedBeforeQuit = false
+app.on('before-quit', (event) => {
+  if (inkFlushedBeforeQuit || !hasPendingInkWrites()) return
+  event.preventDefault()
+  void flushInkWrites().finally(() => {
+    inkFlushedBeforeQuit = true
+    app.quit()
   })
 })
 

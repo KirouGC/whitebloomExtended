@@ -17,6 +17,8 @@ import {
   registerLinkedMaterials
 } from '../services/workspace-material'
 import {
+  applyInkDelta,
+  type InkDelta,
   appendInkStroke,
   clearInkLayer,
   deleteInkStroke,
@@ -441,6 +443,22 @@ export function registerAppIpc(context: MainProcessContext): void {
         return { ok: true, clearedStrokes: await clearInkLayer(workspaceRoot, binding) }
       } catch {
         return { ok: false, clearedStrokes: [] }
+      }
+    }
+  )
+
+  // Only the changed strokes cross IPC, and nothing heavy comes back.
+  ipcMain.handle(
+    'ink:apply-delta',
+    async (_event, workspaceRoot: string, binding: InkSurfaceBinding, delta: InkDelta): Promise<{ ok: boolean }> => {
+      try {
+        await applyInkDelta(workspaceRoot, binding, {
+          add: Array.isArray(delta?.add) ? delta.add : [],
+          removeIds: Array.isArray(delta?.removeIds) ? delta.removeIds : []
+        })
+        return { ok: true }
+      } catch {
+        return { ok: false }
       }
     }
   )

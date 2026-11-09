@@ -174,7 +174,8 @@ export const useAppSettingsStore = create<AppSettingsState>((set, get) => ({
         penColor: style.penColor !== undefined ? (normalizeHexColor(style.penColor) ?? current.penColor) : current.penColor,
         penWidth: style.penWidth !== undefined ? normalizePenWidth(style.penWidth) : current.penWidth,
         pressureSensitive:
-          style.pressureSensitive !== undefined ? style.pressureSensitive === true : current.pressureSensitive
+          style.pressureSensitive !== undefined ? style.pressureSensitive === true : current.pressureSensitive,
+        rawStrokes: style.rawStrokes !== undefined ? style.rawStrokes === true : current.rawStrokes
       }
     })
     scheduleSave(get)

@@ -3,6 +3,7 @@ import type { InkPagedUvSample } from '../../../../shared/ink'
 import { DEFAULT_INK_STROKE_DYNAMICS, DEFAULT_INK_STROKE_STYLE } from '../../../../shared/ink'
 import type { InkTool } from '../../canvas/InkToolbar'
 import type { InkPenStyle } from '../../canvas/InkOverlay'
+import { rawStrokePath, strokeRawPath } from '../../canvas/inkStrokeOptions'
 import {
   buildOutlineFromScreenSamples,
   clampPressure,
@@ -113,6 +114,17 @@ export function PdfInkOverlay({
     if (!context) return
 
     context.clearRect(0, 0, canvasSize.width, canvasSize.height)
+    if (penStyle.raw) {
+      if (currentSamples.length === 0) return
+      strokeRawPath(
+        context,
+        rawStrokePath(currentSamples.map((s) => [s.x, s.y] as [number, number])),
+        penStyle.width,
+        penStyle.color,
+        DEFAULT_INK_STROKE_STYLE.opacity
+      )
+      return
+    }
     if (currentOutline.length < 2) return
 
     drawStrokePolygon(
@@ -121,7 +133,7 @@ export function PdfInkOverlay({
       penStyle.color,
       DEFAULT_INK_STROKE_STYLE.opacity
     )
-  }, [canvasSize.height, canvasSize.width, currentOutline, penStyle.color])
+  }, [canvasSize.height, canvasSize.width, currentOutline, currentSamples, penStyle.color, penStyle.raw, penStyle.width])
 
   useEffect(() => {
     if (active) return
@@ -210,7 +222,7 @@ export function PdfInkOverlay({
         }
 
         const distance = Math.hypot(nextSample.x - last.x, nextSample.y - last.y)
-        if (distance < DEFAULT_INK_STROKE_DYNAMICS.sampleSpacing) {
+        if (distance < (penStyleRef.current.raw ? 0.0001 : DEFAULT_INK_STROKE_DYNAMICS.sampleSpacing)) {
           event.preventDefault()
           return
         }
@@ -259,7 +271,7 @@ export function PdfInkOverlay({
         setCurrentSamples([])
         activePointerIdRef.current = null
 
-        if (pagedSamples.length > 1) {
+        if (pagedSamples.length > 1 || (penStyleRef.current.raw && pagedSamples.length === 1)) {
           onTransfer({
             id: crypto.randomUUID(),
             tool: 'pen',
@@ -268,7 +280,11 @@ export function PdfInkOverlay({
               color: penStyleRef.current.color,
               width: penStyleRef.current.width
             },
-            dynamics: { ...DEFAULT_INK_STROKE_DYNAMICS, pressure: penStyleRef.current.pressure },
+            dynamics: {
+              ...DEFAULT_INK_STROKE_DYNAMICS,
+              pressure: penStyleRef.current.raw ? false : penStyleRef.current.pressure,
+              ...(penStyleRef.current.raw ? { raw: true } : {})
+            },
             samples: pagedSamples,
             createdAt: new Date().toISOString()
           })

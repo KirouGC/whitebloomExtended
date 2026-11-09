@@ -383,7 +383,12 @@ const api = {
     ipcRenderer.invoke('trash:restore', trashPath),
   deleteFromTrash: (trashPath: string): Promise<{ ok: boolean }> =>
     ipcRenderer.invoke('trash:delete', trashPath),
-  emptyTrash: (): Promise<{ ok: boolean; deleted: number }> => ipcRenderer.invoke('trash:empty')
+  emptyTrash: (): Promise<{ ok: boolean; deleted: number }> => ipcRenderer.invoke('trash:empty'),
+  applyInkDelta: (
+    workspaceRoot: string,
+    binding: InkSurfaceBinding,
+    delta: { add: InkStroke[]; removeIds: string[] }
+  ): Promise<{ ok: boolean }> => ipcRenderer.invoke('ink:apply-delta', workspaceRoot, binding, delta)
 }
 
 if (process.contextIsolated) {

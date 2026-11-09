@@ -36,6 +36,8 @@ export type AppSettings = {
     penWidth: number
     /** Pen width follows tablet pressure (and simulated pressure for mice). */
     pressureSensitive: boolean
+    /** Direct ink: draw exactly what the pen does (no smoothing/tapering), on every board. */
+    rawStrokes: boolean
   }
   quickAccess: {
     /** Folders pinned on the start screen; each lists the workspaces inside it. */
@@ -65,7 +67,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   ink: {
     penColor: '#111111',
     penWidth: 2,
-    pressureSensitive: true
+    pressureSensitive: true,
+    rawStrokes: false
   },
   quickAccess: {
     folders: [],
@@ -171,7 +174,7 @@ export function normalizeAppSettings(value: unknown): AppSettings {
     commands?: { aliases?: unknown }
     language?: unknown
     appearance?: { theme?: unknown; crosshairColor?: unknown; backgroundDots?: unknown }
-    ink?: { penColor?: unknown; penWidth?: unknown; pressureSensitive?: unknown }
+    ink?: { penColor?: unknown; penWidth?: unknown; pressureSensitive?: unknown; rawStrokes?: unknown }
     quickAccess?: { folders?: unknown; neverAskToAdd?: unknown }
   }
   return {
@@ -197,7 +200,8 @@ export function normalizeAppSettings(value: unknown): AppSettings {
     ink: {
       penColor: normalizeHexColor(candidate.ink?.penColor) ?? DEFAULT_APP_SETTINGS.ink.penColor,
       penWidth: normalizePenWidth(candidate.ink?.penWidth),
-      pressureSensitive: candidate.ink?.pressureSensitive !== false
+      pressureSensitive: candidate.ink?.pressureSensitive !== false,
+      rawStrokes: candidate.ink?.rawStrokes === true
     },
     quickAccess: {
       folders: normalizeQuickAccessFolders(candidate.quickAccess?.folders),

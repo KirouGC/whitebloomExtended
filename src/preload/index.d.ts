@@ -338,6 +338,11 @@ declare global {
       restoreFromTrash: (trashPath: string) => Promise<{ ok: boolean; restoredPath?: string }>
       deleteFromTrash: (trashPath: string) => Promise<{ ok: boolean }>
       emptyTrash: () => Promise<{ ok: boolean; deleted: number }>
+      applyInkDelta: (
+        workspaceRoot: string,
+        binding: InkSurfaceBinding,
+        delta: { add: InkStroke[]; removeIds: string[] }
+      ) => Promise<{ ok: boolean }>
     }
   }
 }

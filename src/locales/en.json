@@ -335,7 +335,10 @@
     "colorLabel": "Color",
     "customColorLabel": "Custom color",
     "thicknessLabel": "Thickness",
-    "pressureLabel": "Pressure sensitivity"
+    "pressureLabel": "Pressure sensitivity",
+    "rawLabel": "Direct ink (no smoothing)",
+    "rawHint": "Draws exactly what the pen does, like Paint: constant width, no smoothing or tapering, and quick taps become dots. Applies to every board.",
+    "pressureDisabledHint": "Not available with direct ink (constant width)."
   },
   "quickAccessPrompt": {
     "title": "Add folder to Quick Access?",

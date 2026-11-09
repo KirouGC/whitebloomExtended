@@ -177,3 +177,12 @@
   accent-color: var(--color-accent-blue);
   cursor: pointer;
 }
+
+.ink-pen-picker__check--disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.ink-pen-picker__check--disabled input {
+  cursor: default;
+}
